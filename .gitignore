@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# workbuddy (AI 工作记忆，含开发日志等内部信息)
+.workbuddy/

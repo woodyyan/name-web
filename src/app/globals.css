@@ -1,26 +1,162 @@
 @import "tailwindcss";
 
+/* ============================================
+   「诗名」古风主题
+   ============================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* 古风配色 */
+  --color-paper: #fdf8f0;
+  --color-paper-deep: #f5ead6;
+  --color-ink: #2c2c2c;
+  --color-ink-light: #5a5a5a;
+  --color-ink-muted: #8c8c8c;
+  --color-rust: #8b4513;
+  --color-rust-light: #c17f59;
+  --color-walnut: #a0522d;
+  --color-bamboo: #6b8e6b;
+  --color-bamboo-light: #8fbc8f;
+  --color-silk: #faf5eb;
+  --color-gold: #e8d5b7;
+  --color-gold-deep: #d4b896;
+  --color-crimson: #8b2500;
+
+  --background: var(--color-paper);
+  --foreground: var(--color-ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--color-paper);
+  --color-paper-deep: var(--color-paper-deep);
+  --color-ink: var(--color-ink);
+  --color-ink-light: var(--color-ink-light);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-rust: var(--color-rust);
+  --color-rust-light: var(--color-rust-light);
+  --color-walnut: var(--color-walnut);
+  --color-bamboo: var(--color-bamboo);
+  --color-bamboo-light: var(--color-bamboo-light);
+  --color-silk: var(--color-silk);
+  --color-gold: var(--color-gold);
+  --color-gold-deep: var(--color-gold-deep);
+  --color-crimson: var(--color-crimson);
+
+  --font-serif: "Noto Serif SC", "Source Han Serif SC", "STSong", "SimSun",
+    serif;
+  --font-kai: "LXGW WenKai", "楷体", "KaiTi", "STKaiti", serif;
+  --font-sans: "Noto Sans SC", "Source Han Sans SC", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* 全局基础样式 */
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-serif);
+  min-height: 100vh;
+}
+
+/* 选择文本颜色 */
+::selection {
+  background: var(--color-gold);
+  color: var(--color-ink);
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-paper-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-gold-deep);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-rust-light);
+}
+
+/* 古风装饰线 */
+.divider-ornament {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-gold-deep);
+}
+
+.divider-ornament::before,
+.divider-ornament::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--color-gold-deep),
+    transparent
+  );
+}
+
+/* 纸张纹理背景 */
+.paper-texture {
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+/* 墨水晕染动画 */
+@keyframes ink-spread {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+    filter: blur(8px);
+  }
+  50% {
+    opacity: 0.7;
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.animate-ink-spread {
+  animation: ink-spread 0.8s ease-out forwards;
+}
+
+/* 淡入上浮 */
+@keyframes float-in {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-float-in {
+  animation: float-in 0.6s ease-out forwards;
+}
+
+/* 加载脉冲 */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
 }
