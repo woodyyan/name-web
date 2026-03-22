@@ -86,7 +86,7 @@ export default function Home() {
           <p className="text-sm text-[var(--color-ink-muted)] max-w-md mx-auto leading-relaxed px-4">
             从《诗经》《楚辞》《唐诗》《宋词》等经典古籍中
             <br />
-            为你精选有意境、有出处的好名字
+            AI 为你精选有意境、有出处的好名字
           </p>
         </motion.div>
       </header>
@@ -185,6 +185,9 @@ export default function Home() {
       <footer className="py-6 text-center border-t border-[var(--color-gold)]/30">
         <p className="text-xs text-[var(--color-ink-muted)]">
           「诗名」— 以诗为名，不负韶华
+        </p>
+        <p className="text-xs text-[var(--color-ink-muted)]/60 mt-1">
+          AI 驱动 · 古典诗词智能取名
         </p>
       </footer>
 

@@ -131,7 +131,7 @@ export default function PreferenceForm({
                      shadow-md hover:shadow-lg"
           style={{ fontFamily: "var(--font-serif)" }}
         >
-          {loading ? "正在为您精选..." : "为 我 取 名"}
+          {loading ? "AI 正在翻阅古籍..." : "为 我 取 名"}
         </button>
       </div>
     </motion.form>
