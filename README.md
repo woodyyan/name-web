@@ -108,37 +108,41 @@ npm start -- -p 8080
 
 ### 方式三：Docker 部署
 
-创建 `Dockerfile`：
-
-```dockerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine AS runner
-WORKDIR /app
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/static ./.next/static
-
-ENV NODE_ENV=production
-EXPOSE 3000
-CMD ["node", "server.js"]
-```
+项目已包含 `Dockerfile`（多阶段构建）和 `.dockerignore`，直接构建即可：
 
 ```bash
+# 构建镜像
 docker build -t shiming .
-docker run -p 3000:3000 \
+
+# 运行容器
+docker run -d -p 3000:3000 \
   -e AI_API_KEY=your-api-key \
   -e AI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3 \
   -e AI_MODEL=doubao-seed-2-0-pro-260215 \
+  --name shiming \
   shiming
 ```
 
-> **注意**：Docker 部署需要在 `next.config.ts` 中启用 `output: 'standalone'`。
+也可以使用 Docker Compose，创建 `docker-compose.yml`：
+
+```yaml
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - AI_API_KEY=your-api-key
+      - AI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+      - AI_MODEL=doubao-seed-2-0-pro-260215
+    restart: unless-stopped
+```
+
+```bash
+docker compose up -d
+```
+
+> **说明**：`next.config.ts` 已配置 `output: 'standalone'`，生产镜像约 ~150MB，仅包含运行所需的最小依赖。
 
 ### 环境变量说明
 
