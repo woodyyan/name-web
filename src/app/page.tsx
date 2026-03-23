@@ -74,14 +74,6 @@ export default function Home() {
             诗名
           </h1>
 
-          {/* 副标题 */}
-          <p
-            className="text-lg md:text-xl text-[var(--color-ink-light)] tracking-[0.3em]"
-            style={{ fontFamily: "var(--font-kai), serif" }}
-          >
-            以诗为名，不负韶华
-          </p>
-
           <div className="divider-ornament max-w-xs mx-auto mt-6 mb-2">❀</div>
 
           <p className="text-sm text-[var(--color-ink-muted)] max-w-md mx-auto leading-relaxed px-4">
