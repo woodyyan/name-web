@@ -19,8 +19,13 @@ const COLLECTIONS: { value: Collection; label: string }[] = [
   { value: "楚辞", label: "楚辞" },
   { value: "唐诗", label: "唐诗" },
   { value: "宋词", label: "宋词" },
+  { value: "元曲", label: "元曲" },
+  { value: "古文观止", label: "古文观止" },
   { value: "论语", label: "论语" },
+  { value: "孟子", label: "孟子" },
+  { value: "大学·中庸", label: "大学·中庸" },
   { value: "道德经", label: "道德经" },
+  { value: "庄子", label: "庄子" },
 ];
 
 export default function PreferenceForm({
