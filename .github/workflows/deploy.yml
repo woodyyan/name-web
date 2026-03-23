@@ -1,0 +1,101 @@
+# ============================================
+# 诗名 (name-web) — 自动部署到服务器
+# ============================================
+# 触发条件：push 到 main 分支
+# 部署方式：SSH 登录服务器 → Docker 构建 & 重启
+#
+# 需要配置的 GitHub Secrets：
+#   SERVER_HOST     — 服务器 IP 或域名
+#   SERVER_PORT     — SSH 端口（默认 22）
+#   SERVER_USER     — SSH 登录用户名
+#   SERVER_PASSWORD  — SSH 登录密码
+#   AI_API_KEY      — AI API 密钥（火山引擎 ARK）
+#   AI_BASE_URL     — AI API 基础地址（可选，默认火山引擎）
+#   AI_MODEL        — AI 模型名称（可选，默认 doubao-seed-2-0-pro-260215）
+
+name: Deploy to Server
+
+on:
+  push:
+    branches: [main]
+
+  # 支持手动触发
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script_stop: true
+          script: |
+            set -e
+
+            # --- 配置 ---
+            APP_DIR=~/name-web
+            REPO_URL=https://github.com/woodyyan/name-web.git
+            CONTAINER_NAME=name-web
+            IMAGE_NAME=name-web:latest
+            HOST_PORT=3999
+
+            echo "🚀 开始部署诗名..."
+
+            # --- 拉取代码 ---
+            if [ -d "$APP_DIR" ]; then
+              echo "📦 更新代码..."
+              cd "$APP_DIR"
+              git fetch --all
+              git reset --hard origin/main
+            else
+              echo "📦 首次克隆..."
+              git clone "$REPO_URL" "$APP_DIR"
+              cd "$APP_DIR"
+            fi
+
+            # --- 写入环境变量文件 ---
+            cat > .env.local <<EOF
+            AI_API_KEY=${{ secrets.AI_API_KEY }}
+            AI_BASE_URL=${{ secrets.AI_BASE_URL }}
+            AI_MODEL=${{ secrets.AI_MODEL }}
+            EOF
+
+            # --- Docker 构建 ---
+            echo "🔨 构建 Docker 镜像..."
+            docker build -t "$IMAGE_NAME" .
+
+            # --- 停止旧容器 ---
+            echo "🛑 停止旧容器..."
+            docker stop "$CONTAINER_NAME" 2>/dev/null || true
+            docker rm "$CONTAINER_NAME" 2>/dev/null || true
+
+            # --- 启动新容器 ---
+            echo "✅ 启动新容器..."
+            docker run -d \
+              --name "$CONTAINER_NAME" \
+              --restart unless-stopped \
+              -p "$HOST_PORT":3000 \
+              --env-file .env.local \
+              "$IMAGE_NAME"
+
+            # --- 清理旧镜像 ---
+            echo "🧹 清理悬空镜像..."
+            docker image prune -f
+
+            # --- 验证 ---
+            echo "⏳ 等待服务启动..."
+            sleep 5
+            if curl -sf http://localhost:"$HOST_PORT" > /dev/null; then
+              echo "🎉 部署成功！服务运行在端口 $HOST_PORT"
+            else
+              echo "⚠️ 服务可能还在启动中，请稍后手动检查"
+              docker logs "$CONTAINER_NAME" --tail 20
+            fi
