@@ -2,7 +2,8 @@
 # 诗名 (name-web) — 自动部署到服务器
 # ============================================
 # 触发条件：push 到 main 分支
-# 部署方式：SSH 登录服务器 → Docker 构建 & 重启
+# 部署方式：GitHub runner 构建镜像 → SCP 传输 → SSH 部署
+# 优势：服务器无需访问 GitHub，适合国内服务器
 #
 # 需要配置的 GitHub Secrets：
 #   SERVER_HOST     — 服务器 IP 或域名
@@ -10,8 +11,8 @@
 #   SERVER_USER     — SSH 登录用户名
 #   SERVER_PASSWORD  — SSH 登录密码
 #   AI_API_KEY      — AI API 密钥（火山引擎 ARK）
-#   AI_BASE_URL     — AI API 基础地址（可选，默认火山引擎）
-#   AI_MODEL        — AI 模型名称（可选，默认 doubao-seed-2-0-pro-260215）
+#   AI_BASE_URL     — AI API 基础地址
+#   AI_MODEL        — AI 模型名称
 
 name: Deploy to Server
 
@@ -22,14 +23,46 @@ on:
   # 支持手动触发
   workflow_dispatch:
 
+env:
+  IMAGE_NAME: name-web
+  CONTAINER_NAME: name-web
+  HOST_PORT: 3999
+
 jobs:
-  deploy:
+  build-and-deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
-      - name: Deploy via SSH
+      # --- 第 1 步：拉代码 ---
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # --- 第 2 步：在 runner 上构建 Docker 镜像 ---
+      - name: Build Docker image
+        run: docker build -t ${{ env.IMAGE_NAME }}:latest .
+
+      # --- 第 3 步：导出镜像为 tar ---
+      - name: Save Docker image
+        run: |
+          docker save ${{ env.IMAGE_NAME }}:latest | gzip > /tmp/name-web-image.tar.gz
+          ls -lh /tmp/name-web-image.tar.gz
+
+      # --- 第 4 步：传输镜像到服务器 ---
+      - name: Transfer image to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          source: /tmp/name-web-image.tar.gz
+          target: /tmp
+          strip_components: 1
+
+      # --- 第 5 步：SSH 到服务器部署 ---
+      - name: Deploy on server
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -37,54 +70,38 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           script_stop: true
+          envs: IMAGE_NAME,CONTAINER_NAME,HOST_PORT
           script: |
             set -e
 
-            # --- 配置 ---
-            APP_DIR=~/name-web
-            REPO_URL=https://github.com/woodyyan/name-web.git
-            CONTAINER_NAME=name-web
-            IMAGE_NAME=name-web:latest
-            HOST_PORT=3999
-
             echo "🚀 开始部署诗名..."
 
-            # --- 拉取代码 ---
-            if [ -d "$APP_DIR" ]; then
-              echo "📦 更新代码..."
-              cd "$APP_DIR"
-              git fetch --all
-              git reset --hard origin/main
-            else
-              echo "📦 首次克隆..."
-              git clone "$REPO_URL" "$APP_DIR"
-              cd "$APP_DIR"
-            fi
+            # --- 加载镜像 ---
+            echo "📦 加载 Docker 镜像..."
+            gunzip -c /tmp/name-web-image.tar.gz | docker load
+            rm -f /tmp/name-web-image.tar.gz
 
             # --- 写入环境变量文件 ---
-            cat > .env.local <<EOF
+            mkdir -p ~/name-web
+            cat > ~/name-web/.env.local <<'ENVEOF'
             AI_API_KEY=${{ secrets.AI_API_KEY }}
             AI_BASE_URL=${{ secrets.AI_BASE_URL }}
             AI_MODEL=${{ secrets.AI_MODEL }}
-            EOF
-
-            # --- Docker 构建 ---
-            echo "🔨 构建 Docker 镜像..."
-            docker build -t "$IMAGE_NAME" .
+            ENVEOF
 
             # --- 停止旧容器 ---
             echo "🛑 停止旧容器..."
-            docker stop "$CONTAINER_NAME" 2>/dev/null || true
-            docker rm "$CONTAINER_NAME" 2>/dev/null || true
+            docker stop $CONTAINER_NAME 2>/dev/null || true
+            docker rm $CONTAINER_NAME 2>/dev/null || true
 
             # --- 启动新容器 ---
             echo "✅ 启动新容器..."
             docker run -d \
-              --name "$CONTAINER_NAME" \
+              --name $CONTAINER_NAME \
               --restart unless-stopped \
-              -p "$HOST_PORT":3000 \
-              --env-file .env.local \
-              "$IMAGE_NAME"
+              -p $HOST_PORT:3000 \
+              --env-file ~/name-web/.env.local \
+              $IMAGE_NAME:latest
 
             # --- 清理旧镜像 ---
             echo "🧹 清理悬空镜像..."
@@ -93,9 +110,9 @@ jobs:
             # --- 验证 ---
             echo "⏳ 等待服务启动..."
             sleep 5
-            if curl -sf http://localhost:"$HOST_PORT" > /dev/null; then
+            if curl -sf http://localhost:$HOST_PORT > /dev/null; then
               echo "🎉 部署成功！服务运行在端口 $HOST_PORT"
             else
               echo "⚠️ 服务可能还在启动中，请稍后手动检查"
-              docker logs "$CONTAINER_NAME" --tail 20
+              docker logs $CONTAINER_NAME --tail 20
             fi
