@@ -8,7 +8,8 @@ interface PreferenceFormProps {
   onSubmit: (
     surname: string,
     gender: Gender,
-    collections: Collection[]
+    collections: Collection[],
+    designatedChar?: string
   ) => void;
   loading: boolean;
 }
@@ -27,6 +28,7 @@ export default function PreferenceForm({
   loading,
 }: PreferenceFormProps) {
   const [surname, setSurname] = useState("");
+  const [designatedChar, setDesignatedChar] = useState("");
   const [gender, setGender] = useState<Gender>("neutral");
   const [selectedCollections, setSelectedCollections] = useState<Collection[]>(
     []
@@ -41,7 +43,12 @@ export default function PreferenceForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!surname.trim()) return;
-    onSubmit(surname.trim(), gender, selectedCollections);
+    onSubmit(
+      surname.trim(),
+      gender,
+      selectedCollections,
+      designatedChar.trim() || undefined
+    );
   };
 
   return (
@@ -68,6 +75,30 @@ export default function PreferenceForm({
             style={{ fontFamily: "var(--font-kai), serif" }}
           />
         </div>
+      </div>
+
+      {/* 指定字输入（可选） */}
+      <div className="text-center">
+        <p className="text-sm text-[var(--color-ink-muted)] mb-2">
+          指定字（可选）
+        </p>
+        <div className="relative inline-block">
+          <input
+            type="text"
+            value={designatedChar}
+            onChange={(e) => setDesignatedChar(e.target.value)}
+            placeholder="如：瑶"
+            maxLength={1}
+            className="w-32 h-11 text-center text-lg tracking-[0.3em] bg-transparent
+                       border-b border-[var(--color-gold)] outline-none
+                       text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)]/40
+                       focus:border-[var(--color-rust)] transition-colors"
+            style={{ fontFamily: "var(--font-kai), serif" }}
+          />
+        </div>
+        <p className="text-xs text-[var(--color-ink-muted)]/60 mt-1.5">
+          希望名字中包含的字，将从古诗词中寻找搭配
+        </p>
       </div>
 
       {/* 性别选择 */}

@@ -31,10 +31,11 @@ export default function Home() {
   const handleGenerate = async (
     surname: string,
     gender: Gender,
-    collections: Collection[]
+    collections: Collection[],
+    designatedChar?: string
   ) => {
     setHasGenerated(true);
-    await generate(surname, gender, collections);
+    await generate(surname, gender, collections, designatedChar);
   };
 
   const handleToggleFavorite = (name: NameResult) => {

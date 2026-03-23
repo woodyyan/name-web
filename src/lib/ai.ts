@@ -3,7 +3,7 @@ import type {
   GenerateNamesRequest,
   CuratedVerse,
 } from "./types";
-import { getCandidateVerses } from "./poetry";
+import { getCandidateVerses, searchVersesByChar, shuffleArray } from "./poetry";
 import { getPinyin, getTonePattern } from "./pinyin";
 
 /**
@@ -226,6 +226,61 @@ ${versesText}
 }
 
 /**
+ * 构建「指定字取名」专用 Prompt
+ */
+function buildDesignatedCharPrompt(
+  surname: string,
+  gender: string,
+  designatedChar: string,
+  candidates: CuratedVerse[]
+): string {
+  const genderText =
+    gender === "male" ? "男孩" : gender === "female" ? "女孩" : "男女皆宜";
+
+  const versesText = candidates
+    .map(
+      (v, i) =>
+        `${i + 1}. 「${v.text}」—— ${v.author}《${v.title}》（${v.collection}）\n   完整诗段：${v.fullText}`
+    )
+    .join("\n");
+
+  return `你是一位精通中国古典文学的取名大师。用户希望名字中包含「${designatedChar}」字。请从以下包含该字的诗句中，为姓"${surname}"的${genderText}取6个好名字。
+
+## 包含「${designatedChar}」字的候选诗句
+${versesText}
+
+## 取名要求
+1. **每个名字必须包含「${designatedChar}」字**
+2. 名字取1-2个字（不含姓），另一个字也必须出自同一句诗（可以是完整诗段中的字）
+3. 「${designatedChar}」可以在前也可以在后（如「${designatedChar}X」或「X${designatedChar}」）
+4. 也可以只用「${designatedChar}」一个字作为单字名
+5. 名字要好听、有意境、寓意美好
+6. 注意与姓氏"${surname}"搭配的音韵和谐度，避免不雅谐音
+7. 多样化：尽量来自不同诗句，展现不同意境
+
+## 输出格式
+请严格以 JSON 数组格式输出，每个元素包含：
+\`\`\`json
+[
+  {
+    "givenName": "名（不含姓）",
+    "sourceText": "出处的诗句原文",
+    "sourceTitle": "篇名",
+    "sourceAuthor": "作者",
+    "sourceDynasty": "朝代",
+    "sourceCollection": "典籍分类",
+    "sourceFullText": "包含该诗句的完整段落",
+    "nameReason": "取名释义：为什么从这句诗中选这几个字组合，约80字",
+    "meaning": "寓意解读：这个名字寄托了什么美好愿望，约60字",
+    "imagery": "意境描绘：用优美的语言描绘这个名字的画面感，约80字"
+  }
+]
+\`\`\`
+
+只输出 JSON 数组，不要输出其他内容。`;
+}
+
+/**
  * 解析 AI 返回的 JSON
  */
 function parseAIResponse(content: string): Record<string, string>[] {
@@ -302,25 +357,46 @@ function repairTruncatedJSON(text: string): string | null {
 export async function generateNames(
   request: GenerateNamesRequest
 ): Promise<NameResult[]> {
-  const { surname, gender, collections, excludeNames, batchIndex } = request;
+  const { surname, gender, collections, excludeNames, batchIndex, designatedChar } = request;
 
-  // 1. 获取候选诗句
-  const candidates = getCandidateVerses(
-    {
+  let userPrompt: string;
+
+  if (designatedChar) {
+    // === 指定字模式 ===
+    const candidates = searchVersesByChar(designatedChar, {
       collections: collections.length > 0 ? collections : undefined,
       gender,
-    },
-    15 // 多给一些让 AI 选择空间
-  );
+    });
 
-  if (candidates.length === 0) {
-    throw new Error("没有找到匹配的诗句，请尝试调整筛选条件");
+    if (candidates.length === 0) {
+      throw new Error(
+        `未在经典诗句中找到含「${designatedChar}」的诗句，建议换个字试试`
+      );
+    }
+
+    // 打乱后取最多 15 条
+    const shuffled = shuffleArray(candidates).slice(0, 15);
+    userPrompt = buildDesignatedCharPrompt(surname, gender, designatedChar, shuffled);
+  } else {
+    // === 普通模式 ===
+    const candidates = getCandidateVerses(
+      {
+        collections: collections.length > 0 ? collections : undefined,
+        gender,
+      },
+      15
+    );
+
+    if (candidates.length === 0) {
+      throw new Error("没有找到匹配的诗句，请尝试调整筛选条件");
+    }
+
+    userPrompt = buildPrompt(surname, gender, candidates);
   }
 
   // 2. 调用 AI
   const systemPrompt =
     "你是一位精通中国古典文学的取名大师，学识渊博，对诗经、楚辞、唐诗、宋词等经典了然于胸。你取的名字既有文化底蕴，又好听好记。回答务必使用 JSON 格式。";
-  const userPrompt = buildPrompt(surname, gender, candidates);
   const responseText = await callAI(systemPrompt, userPrompt);
 
   // 3. 解析结果

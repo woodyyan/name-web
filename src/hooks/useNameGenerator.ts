@@ -18,7 +18,8 @@ interface UseNameGeneratorReturn {
   generate: (
     surname: string,
     gender: Gender,
-    collections: Collection[]
+    collections: Collection[],
+    designatedChar?: string
   ) => Promise<void>;
   nextBatch: () => Promise<void>;
   reset: () => void;
@@ -35,6 +36,7 @@ export function useNameGenerator(): UseNameGeneratorReturn {
     surname: string;
     gender: Gender;
     collections: Collection[];
+    designatedChar?: string;
   } | null>(null);
 
   const fetchNames = useCallback(
@@ -43,7 +45,8 @@ export function useNameGenerator(): UseNameGeneratorReturn {
       gender: Gender,
       collections: Collection[],
       batch: number,
-      excludeNames: string[]
+      excludeNames: string[],
+      designatedChar?: string
     ) => {
       setLoading(true);
       setError(null);
@@ -58,6 +61,7 @@ export function useNameGenerator(): UseNameGeneratorReturn {
             collections,
             excludeNames,
             batchIndex: batch,
+            designatedChar: designatedChar || undefined,
           }),
         });
 
@@ -84,11 +88,11 @@ export function useNameGenerator(): UseNameGeneratorReturn {
   );
 
   const generate = useCallback(
-    async (surname: string, gender: Gender, collections: Collection[]) => {
+    async (surname: string, gender: Gender, collections: Collection[], designatedChar?: string) => {
       setAllShownNames([]);
       setBatchIndex(0);
-      setCurrentParams({ surname, gender, collections });
-      await fetchNames(surname, gender, collections, 0, []);
+      setCurrentParams({ surname, gender, collections, designatedChar });
+      await fetchNames(surname, gender, collections, 0, [], designatedChar);
     },
     [fetchNames]
   );
@@ -101,7 +105,8 @@ export function useNameGenerator(): UseNameGeneratorReturn {
       currentParams.gender,
       currentParams.collections,
       newBatch,
-      allShownNames
+      allShownNames,
+      currentParams.designatedChar
     );
   }, [currentParams, hasMore, batchIndex, allShownNames, fetchNames]);
 

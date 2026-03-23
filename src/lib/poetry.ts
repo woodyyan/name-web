@@ -70,6 +70,41 @@ export function getCandidateVerses(
 }
 
 /**
+ * 搜索包含指定字的诗句
+ * 先按 text（取名诗句）搜索，不够再搜 fullText（完整诗段）
+ */
+export function searchVersesByChar(
+  char: string,
+  options?: FilterOptions
+): CuratedVerse[] {
+  let pool = options ? filterVerses(options) : [...verses];
+
+  // 优先搜 text 字段（取名诗句更精准）
+  let matched = pool.filter((v) => v.text.includes(char));
+
+  // 如果太少（<3），放宽到 fullText 搜索
+  if (matched.length < 3) {
+    const fullTextMatched = pool.filter(
+      (v) => !v.text.includes(char) && v.fullText.includes(char)
+    );
+    matched = [...matched, ...fullTextMatched];
+  }
+
+  // 如果仍然太少（<3），去掉筛选条件再搜一次
+  if (matched.length < 3 && options) {
+    const allMatched = verses.filter((v) =>
+      v.text.includes(char) || v.fullText.includes(char)
+    );
+    // 去重：排除已有的
+    const existingIds = new Set(matched.map((v) => v.id));
+    const additional = allMatched.filter((v) => !existingIds.has(v.id));
+    matched = [...matched, ...additional];
+  }
+
+  return matched;
+}
+
+/**
  * 通过文本搜索验证出处
  */
 export function verifySource(

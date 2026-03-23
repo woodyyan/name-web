@@ -21,6 +21,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 校验指定字：最多一个字
+    if (body.designatedChar && body.designatedChar.trim().length > 1) {
+      return NextResponse.json(
+        { error: "指定字只能输入一个字" },
+        { status: 400 }
+      );
+    }
+
     // 设置默认值
     const request_data: GenerateNamesRequest = {
       surname: body.surname.trim(),
@@ -28,6 +36,7 @@ export async function POST(request: NextRequest) {
       collections: body.collections || [],
       excludeNames: body.excludeNames || [],
       batchIndex: body.batchIndex || 0,
+      designatedChar: body.designatedChar?.trim() || undefined,
     };
 
     const names = await generateNames(request_data);

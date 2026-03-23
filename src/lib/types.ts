@@ -24,6 +24,8 @@ export interface GenerateNamesRequest {
   collections: Collection[];
   excludeNames: string[];
   batchIndex: number;
+  /** 用户指定的字（可选），名字中必须包含该字 */
+  designatedChar?: string;
 }
 
 /** 诗句出处 */
