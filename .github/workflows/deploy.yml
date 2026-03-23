@@ -46,8 +46,8 @@ jobs:
       # --- 第 3 步：导出镜像为 tar ---
       - name: Save Docker image
         run: |
-          docker save ${{ env.IMAGE_NAME }}:latest | gzip > /tmp/name-web-image.tar.gz
-          ls -lh /tmp/name-web-image.tar.gz
+          docker save ${{ env.IMAGE_NAME }}:latest | gzip > name-web-image.tar.gz
+          ls -lh name-web-image.tar.gz
 
       # --- 第 4 步：传输镜像到服务器 ---
       - name: Transfer image to server
@@ -57,9 +57,8 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
-          source: /tmp/name-web-image.tar.gz
+          source: name-web-image.tar.gz
           target: /tmp
-          strip_components: 1
 
       # --- 第 5 步：SSH 到服务器部署 ---
       - name: Deploy on server
