@@ -61,6 +61,8 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           source: "name-web-image.tar.gz,nginx/babynaming.top.conf"
           target: /tmp
+          timeout: 600s
+          command_timeout: 600s
 
       # --- 第 5 步：SSH 到服务器部署应用 ---
       - name: Deploy application
@@ -71,6 +73,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           script_stop: true
+          command_timeout: 600s
           envs: IMAGE_NAME,CONTAINER_NAME,HOST_PORT
           script: |
             set -e
@@ -127,6 +130,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           script_stop: true
+          command_timeout: 600s
           envs: HOST_PORT,DOMAIN
           script: |
             set -e
