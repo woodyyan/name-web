@@ -69,7 +69,7 @@ AI_MODEL=doubao-seed-2-0-pro-260215
 npm run dev
 ```
 
-打开浏览器访问 [http://localhost:3000](http://localhost:3000)。
+打开浏览器访问 [http://localhost:3999](http://localhost:3999)。
 
 ## 🚀 服务器部署
 

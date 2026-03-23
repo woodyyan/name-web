@@ -98,7 +98,7 @@ jobs:
             docker run -d \
               --name $CONTAINER_NAME \
               --restart unless-stopped \
-              -p $HOST_PORT:3000 \
+              -p $HOST_PORT:3999 \
               --env-file ~/name-web/.env.local \
               $IMAGE_NAME:latest
 
