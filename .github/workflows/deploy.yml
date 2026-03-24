@@ -2,7 +2,7 @@
 # 诗名 (name-web) — 自动部署到服务器
 # ============================================
 # 触发条件：push 到 main 分支
-# 部署方式：GitHub runner 构建镜像 → SCP 传输 → SSH 部署
+# 部署方式：SSH 到服务器 → git pull → docker build → 启动容器
 # 自动化：首次部署自动安装 Nginx + 申请 SSL 证书，后续跳过
 #
 # 需要配置的 GitHub Secrets：
@@ -14,6 +14,7 @@
 #   AI_BASE_URL     — AI API 基础地址
 #   AI_MODEL        — AI 模型名称
 #   DOMAIN          — 网站域名（如 babynaming.top）
+#   REPO_URL        — Git 仓库 HTTPS 地址（如 https://github.com/woodyyan/name-web.git）
 
 name: Deploy to Server
 
@@ -31,40 +32,13 @@ env:
   DOMAIN: ${{ secrets.DOMAIN || 'babynaming.top' }}
 
 jobs:
-  build-and-deploy:
-    name: Build & Deploy
+  deploy:
+    name: Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
-      # --- 第 1 步：拉代码 ---
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # --- 第 2 步：在 runner 上构建 Docker 镜像 ---
-      - name: Build Docker image
-        run: docker build -t ${{ env.IMAGE_NAME }}:latest .
-
-      # --- 第 3 步：导出镜像为 tar ---
-      - name: Save Docker image
-        run: |
-          docker save ${{ env.IMAGE_NAME }}:latest | gzip > name-web-image.tar.gz
-          ls -lh name-web-image.tar.gz
-
-      # --- 第 4 步：传输镜像 + Nginx 配置到服务器 ---
-      - name: Transfer files to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          source: "name-web-image.tar.gz,nginx/babynaming.top.conf"
-          target: /tmp
-          timeout: 600s
-          command_timeout: 600s
-
-      # --- 第 5 步：SSH 到服务器部署应用 ---
+      # --- 第 1 步：SSH 到服务器拉代码、构建镜像、启动容器 ---
       - name: Deploy application
         uses: appleboy/ssh-action@v1
         with:
@@ -73,25 +47,38 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           script_stop: true
-          command_timeout: 600s
+          command_timeout: 1200s
           envs: IMAGE_NAME,CONTAINER_NAME,HOST_PORT
           script: |
             set -e
 
+            REPO_DIR=~/name-web
+            REPO_URL="${{ secrets.REPO_URL || 'https://github.com/woodyyan/name-web.git' }}"
+
             echo "🚀 开始部署诗名..."
 
-            # --- 加载镜像 ---
-            echo "📦 加载 Docker 镜像..."
-            gunzip -c /tmp/name-web-image.tar.gz | docker load
-            rm -f /tmp/name-web-image.tar.gz
+            # --- 拉取最新代码 ---
+            if [ -d "$REPO_DIR/.git" ]; then
+              echo "📥 拉取最新代码..."
+              cd $REPO_DIR
+              git fetch --all
+              git reset --hard origin/main
+            else
+              echo "📥 首次克隆仓库..."
+              git clone "$REPO_URL" $REPO_DIR
+              cd $REPO_DIR
+            fi
 
             # --- 写入环境变量文件 ---
-            mkdir -p ~/name-web
-            cat > ~/name-web/.env.local <<'ENVEOF'
+            cat > $REPO_DIR/.env.local <<ENVEOF
             AI_API_KEY=${{ secrets.AI_API_KEY }}
             AI_BASE_URL=${{ secrets.AI_BASE_URL }}
             AI_MODEL=${{ secrets.AI_MODEL }}
             ENVEOF
+
+            # --- 构建 Docker 镜像 ---
+            echo "🔨 构建 Docker 镜像..."
+            docker build -t $IMAGE_NAME:latest $REPO_DIR
 
             # --- 停止旧容器 ---
             echo "🛑 停止旧容器..."
@@ -104,7 +91,7 @@ jobs:
               --name $CONTAINER_NAME \
               --restart unless-stopped \
               -p $HOST_PORT:3999 \
-              --env-file ~/name-web/.env.local \
+              --env-file $REPO_DIR/.env.local \
               $IMAGE_NAME:latest
 
             # --- 清理旧镜像 ---
@@ -121,7 +108,7 @@ jobs:
               docker logs $CONTAINER_NAME --tail 20
             fi
 
-      # --- 第 6 步：配置 Nginx + SSL（幂等，已有则跳过）---
+      # --- 第 2 步：配置 Nginx + SSL（幂等，已有则跳过）---
       - name: Setup Nginx & SSL
         uses: appleboy/ssh-action@v1
         with:
@@ -136,6 +123,7 @@ jobs:
             set -e
 
             NGINX_CONF="/etc/nginx/conf.d/${DOMAIN}.conf"
+            REPO_CONF=~/name-web/nginx/babynaming.top.conf
 
             # ========== 1. 安装 Nginx（如果没有）==========
             if ! command -v nginx &>/dev/null; then
@@ -166,16 +154,14 @@ jobs:
             fi
 
             # ========== 3. 部署 Nginx 配置（如果没有或有更新）==========
-            UPLOADED_CONF="/tmp/nginx/babynaming.top.conf"
-            if [ -f "$UPLOADED_CONF" ]; then
-              if [ ! -f "$NGINX_CONF" ] || ! diff -q "$UPLOADED_CONF" "$NGINX_CONF" &>/dev/null; then
+            if [ -f "$REPO_CONF" ]; then
+              if [ ! -f "$NGINX_CONF" ] || ! diff -q "$REPO_CONF" "$NGINX_CONF" &>/dev/null; then
                 echo "📝 更新 Nginx 配置..."
-                cp "$UPLOADED_CONF" "$NGINX_CONF"
+                cp "$REPO_CONF" "$NGINX_CONF"
                 echo "✅ Nginx 配置已更新"
               else
                 echo "✅ Nginx 配置无变化，跳过"
               fi
-              rm -rf /tmp/nginx
             fi
 
             # ========== 4. 申请 SSL 证书（如果没有）==========
@@ -216,8 +202,8 @@ jobs:
               echo "✅ SSL 证书申请成功！"
 
               # 恢复完整配置（含 SSL）
-              if [ -f "$UPLOADED_CONF" ] || [ -f "/tmp/nginx/babynaming.top.conf" ]; then
-                cp "$UPLOADED_CONF" "$NGINX_CONF" 2>/dev/null || true
+              if [ -f "$REPO_CONF" ]; then
+                cp "$REPO_CONF" "$NGINX_CONF" 2>/dev/null || true
               fi
               # certbot --nginx 已经帮我们配好了，直接 reload
               nginx -t && systemctl reload nginx
