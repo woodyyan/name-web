@@ -132,7 +132,7 @@ docker compose -f docker-compose.local.yml down
 
 #### 服务器部署（`docker-compose.yml`）
 
-从腾讯云容器镜像仓库（TCR）拉取镜像，适合生产环境：
+从腾讯云容器镜像仓库（TCR）拉取镜像，使用 **Caddy** 作为反向代理（自动 HTTPS）：
 
 ```bash
 # 先登录镜像仓库
@@ -144,6 +144,10 @@ docker compose pull && docker compose up -d --force-recreate
 # 查看日志
 docker compose logs -f
 ```
+
+服务器版 Compose 包含两个服务：
+- **web** — Next.js 应用（不直接暴露端口）
+- **caddy** — 反向代理，监听 80/443，自动申请和续期 Let's Encrypt 证书
 
 > CI/CD 会自动通过 GitHub Actions 完成构建、推送、部署全流程，通常无需手动操作。
 

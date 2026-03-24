@@ -20,7 +20,34 @@ services:
     image: ${TCR_IMAGE:-ccr.ccs.tencentyun.com/your-namespace/name-web}:latest
     container_name: name-web
     restart: unless-stopped
-    ports:
-      - "3999:3999"
+    expose:
+      - "3999"
     env_file:
       - .env.local
+    networks:
+      - app-network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: name-web-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    networks:
+      - app-network
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  app-network:
+    driver: bridge

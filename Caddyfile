@@ -1,0 +1,20 @@
+# ============================================
+# 诗名 (name-web) — Caddy 反向代理配置
+# ============================================
+# HTTPS 自动申请 + 自动续期（Let's Encrypt）
+# HTTP → HTTPS 自动重定向
+# gzip 压缩默认开启
+# ============================================
+
+babynaming.top {
+	reverse_proxy web:3999
+
+	# 静态资源长缓存
+	@static path /_next/static/*
+	header @static Cache-Control "public, max-age=31536000, immutable"
+}
+
+# www 重定向到裸域
+www.babynaming.top {
+	redir https://babynaming.top{uri} permanent
+}

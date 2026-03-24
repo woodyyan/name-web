@@ -2,8 +2,8 @@
 # 诗名 (name-web) — 自动部署到服务器
 # ============================================
 # 触发条件：push 到 main 分支
-# 部署方式：Runner 构建镜像 → 推送腾讯云容器镜像仓库 → 服务器 docker pull 部署
-# 自动化：首次部署自动安装 Nginx + 申请 SSL 证书，后续跳过
+# 部署方式：Runner 构建镜像 → 推送腾讯云 TCR → 服务器 docker compose 部署
+# 反向代理 + HTTPS：Caddy（自动申请/续期 Let's Encrypt 证书）
 #
 # 需要配置的 GitHub Secrets：
 #   TCR_REGISTRY    — 腾讯云镜像仓库地址（如 ccr.ccs.tencentyun.com）
@@ -75,7 +75,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           command_timeout: 600s
-          envs: CONTAINER_NAME,HOST_PORT
+          envs: CONTAINER_NAME,HOST_PORT,DOMAIN
           script: |
             set -e
 
@@ -91,13 +91,29 @@ jobs:
             echo "🔑 登录镜像仓库..."
             echo "$TCR_PASSWORD" | docker login "$TCR_REGISTRY" -u "$TCR_USERNAME" --password-stdin
 
-            # --- 写入环境变量文件 ---
+            # --- 准备部署目录 ---
             mkdir -p "$DEPLOY_DIR"
+
+            # --- 写入环境变量文件 ---
             cat > "$DEPLOY_DIR/.env.local" <<ENVEOF
             AI_API_KEY=${{ secrets.AI_API_KEY }}
             AI_BASE_URL=${{ secrets.AI_BASE_URL }}
             AI_MODEL=${{ secrets.AI_MODEL }}
             ENVEOF
+
+            # --- 写入 Caddyfile ---
+            cat > "$DEPLOY_DIR/Caddyfile" <<'CADDYEOF'
+            babynaming.top {
+            	reverse_proxy web:3999
+
+            	@static path /_next/static/*
+            	header @static Cache-Control "public, max-age=31536000, immutable"
+            }
+
+            www.babynaming.top {
+            	redir https://babynaming.top{uri} permanent
+            }
+            CADDYEOF
 
             # --- 写入 docker-compose.yml ---
             cat > "$DEPLOY_DIR/docker-compose.yml" <<COMPOSEEOF
@@ -106,15 +122,50 @@ jobs:
                 image: ${FULL_IMAGE}:latest
                 container_name: ${CONTAINER_NAME}
                 restart: unless-stopped
-                ports:
-                  - "${HOST_PORT}:3999"
+                expose:
+                  - "3999"
                 env_file:
                   - .env.local
+                networks:
+                  - app-network
+
+              caddy:
+                image: caddy:2-alpine
+                container_name: ${CONTAINER_NAME}-caddy
+                restart: unless-stopped
+                ports:
+                  - "80:80"
+                  - "443:443"
+                  - "443:443/udp"
+                volumes:
+                  - ./Caddyfile:/etc/caddy/Caddyfile:ro
+                  - caddy_data:/data
+                  - caddy_config:/config
+                depends_on:
+                  - web
+                networks:
+                  - app-network
+
+            volumes:
+              caddy_data:
+              caddy_config:
+
+            networks:
+              app-network:
+                driver: bridge
             COMPOSEEOF
 
-            # --- 清理非 Compose 管理的同名旧容器（首次迁移到 Compose 时需要）---
+            # --- 清理非 Compose 管理的旧容器（首次迁移时需要）---
             echo "🛑 清理可能存在的旧容器..."
             docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+            docker rm -f "${CONTAINER_NAME}-caddy" 2>/dev/null || true
+
+            # --- 停止宿主机上的 Nginx（如果有，释放 80/443 端口给 Caddy）---
+            if systemctl is-active nginx &>/dev/null; then
+              echo "🛑 停止宿主机 Nginx（端口让给 Caddy）..."
+              systemctl stop nginx
+              systemctl disable nginx
+            fi
 
             # --- 拉取最新镜像并重建容器 ---
             cd "$DEPLOY_DIR"
@@ -129,187 +180,12 @@ jobs:
 
             # --- 验证应用 ---
             echo "⏳ 等待服务启动..."
-            sleep 5
-            if curl -sf http://localhost:$HOST_PORT > /dev/null; then
-              echo "🎉 应用部署成功！服务运行在端口 $HOST_PORT"
+            sleep 8
+            if curl -sf http://localhost:80 > /dev/null 2>&1; then
+              echo "🎉 应用部署成功！Caddy 已在 80/443 端口提供服务"
             else
               echo "⚠️ 服务可能还在启动中，请稍后手动检查"
-              docker compose logs --tail 20
-            fi
-
-  # ==================== Job 3: 配置 Nginx + SSL ====================
-  setup-nginx:
-    name: Setup Nginx & SSL
-    runs-on: ubuntu-latest
-    needs: deploy
-    timeout-minutes: 10
-
-    steps:
-      - name: Setup Nginx & SSL
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          command_timeout: 600s
-          envs: HOST_PORT,DOMAIN
-          script: |
-            set -e
-
-            NGINX_CONF="/etc/nginx/conf.d/${DOMAIN}.conf"
-
-            # ========== 1. 安装 Nginx（如果没有）==========
-            if ! command -v nginx &>/dev/null; then
-              echo "📦 安装 Nginx..."
-              if command -v apt-get &>/dev/null; then
-                apt-get update -qq && apt-get install -y -qq nginx
-              elif command -v yum &>/dev/null; then
-                yum install -y -q nginx
-              fi
-              systemctl enable nginx
-              systemctl start nginx
-              echo "✅ Nginx 已安装并启动"
-            else
-              echo "✅ Nginx 已存在，跳过安装"
-            fi
-
-            # ========== 2. 安装 Certbot（如果没有）==========
-            if ! command -v certbot &>/dev/null; then
-              echo "📦 安装 Certbot..."
-              if command -v apt-get &>/dev/null; then
-                apt-get install -y -qq certbot python3-certbot-nginx
-              elif command -v yum &>/dev/null; then
-                yum install -y -q certbot python3-certbot-nginx
-              fi
-              echo "✅ Certbot 已安装"
-            else
-              echo "✅ Certbot 已存在，跳过安装"
-            fi
-
-            # ========== 3. 部署 Nginx 配置（如果没有）==========
-            if [ ! -f "$NGINX_CONF" ]; then
-              echo "📝 写入 Nginx 配置..."
-              cat > "$NGINX_CONF" <<'NGINXEOF'
-            # HTTP → HTTPS 重定向
-            server {
-                listen 80;
-                listen [::]:80;
-                server_name babynaming.top www.babynaming.top;
-
-                location /.well-known/acme-challenge/ {
-                    root /var/www/certbot;
-                }
-
-                location / {
-                    return 301 https://babynaming.top$request_uri;
-                }
-            }
-
-            # HTTPS 主配置
-            server {
-                listen 443 ssl http2;
-                listen [::]:443 ssl http2;
-                server_name babynaming.top www.babynaming.top;
-
-                ssl_certificate     /etc/letsencrypt/live/babynaming.top/fullchain.pem;
-                ssl_certificate_key /etc/letsencrypt/live/babynaming.top/privkey.pem;
-
-                ssl_protocols TLSv1.2 TLSv1.3;
-                ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-                ssl_prefer_server_ciphers off;
-                ssl_session_cache shared:SSL:10m;
-                ssl_session_timeout 1d;
-
-                if ($host = www.babynaming.top) {
-                    return 301 https://babynaming.top$request_uri;
-                }
-
-                location / {
-                    proxy_pass http://127.0.0.1:3999;
-                    proxy_http_version 1.1;
-                    proxy_set_header Upgrade $http_upgrade;
-                    proxy_set_header Connection "upgrade";
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto $scheme;
-                    proxy_read_timeout 120s;
-                    proxy_send_timeout 120s;
-                }
-
-                location /_next/static/ {
-                    proxy_pass http://127.0.0.1:3999;
-                    expires 365d;
-                    add_header Cache-Control "public, immutable";
-                }
-
-                gzip on;
-                gzip_types text/plain text/css application/json application/javascript text/xml;
-                gzip_min_length 1000;
-            }
-            NGINXEOF
-              echo "✅ Nginx 配置已写入"
-            else
-              echo "✅ Nginx 配置已存在，跳过"
-            fi
-
-            # ========== 4. 申请 SSL 证书（如果没有）==========
-            CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
-            if [ ! -f "$CERT_PATH" ]; then
-              echo "🔐 首次申请 SSL 证书..."
-
-              # 先用临时 HTTP 配置让 certbot 验证
-              mkdir -p /var/www/certbot
-              cat > "$NGINX_CONF" <<TMPEOF
-            server {
-                listen 80;
-                listen [::]:80;
-                server_name ${DOMAIN} www.${DOMAIN};
-
-                location /.well-known/acme-challenge/ {
-                    root /var/www/certbot;
-                }
-
-                location / {
-                    proxy_pass http://127.0.0.1:${HOST_PORT};
-                    proxy_set_header Host \$host;
-                    proxy_set_header X-Real-IP \$remote_addr;
-                }
-            }
-            TMPEOF
-
-              nginx -t && systemctl reload nginx
-
-              certbot --nginx \
-                -d ${DOMAIN} -d www.${DOMAIN} \
-                --non-interactive \
-                --agree-tos \
-                --email admin@${DOMAIN} \
-                --redirect
-
-              echo "✅ SSL 证书申请成功！"
-              nginx -t && systemctl reload nginx
-              echo "✅ HTTPS 已启用"
-            else
-              echo "✅ SSL 证书已存在，跳过申请"
-              nginx -t && systemctl reload nginx
-            fi
-
-            # ========== 5. 确保证书自动续期 ==========
-            if ! systemctl is-enabled certbot.timer &>/dev/null 2>&1; then
-              if systemctl list-unit-files | grep -q certbot.timer; then
-                systemctl enable certbot.timer
-                systemctl start certbot.timer
-                echo "✅ 证书自动续期已启用（systemd timer）"
-              elif ! crontab -l 2>/dev/null | grep -q certbot; then
-                (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | crontab -
-                echo "✅ 证书自动续期已启用（cron）"
-              else
-                echo "✅ 证书自动续期已配置"
-              fi
-            else
-              echo "✅ 证书自动续期已配置"
+              docker compose logs --tail 30
             fi
 
             echo ""
