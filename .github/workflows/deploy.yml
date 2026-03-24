@@ -122,8 +122,8 @@ jobs:
                 image: ${FULL_IMAGE}:latest
                 container_name: ${CONTAINER_NAME}
                 restart: unless-stopped
-                expose:
-                  - "3999"
+                ports:
+                  - "3999:3999"
                 env_file:
                   - .env.local
                 networks:
