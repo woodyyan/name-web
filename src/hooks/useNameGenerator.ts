@@ -2,14 +2,14 @@
 
 import { useState, useCallback } from "react";
 import type {
-  NameResult,
+  NameResultLite,
   Gender,
   Collection,
-  GenerateNamesResponse,
+  GenerateNamesLiteResponse,
 } from "@/lib/types";
 
 interface UseNameGeneratorReturn {
-  names: NameResult[];
+  names: NameResultLite[];
   loading: boolean;
   error: string | null;
   batchIndex: number;
@@ -26,7 +26,7 @@ interface UseNameGeneratorReturn {
 }
 
 export function useNameGenerator(extraExcludeNames: string[] = []): UseNameGeneratorReturn {
-  const [names, setNames] = useState<NameResult[]>([]);
+  const [names, setNames] = useState<NameResultLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [batchIndex, setBatchIndex] = useState(0);
@@ -70,7 +70,7 @@ export function useNameGenerator(extraExcludeNames: string[] = []): UseNameGener
           throw new Error(errData.error || "请求失败");
         }
 
-        const data: GenerateNamesResponse = await res.json();
+        const data: GenerateNamesLiteResponse = await res.json();
         setNames(data.names);
         setBatchIndex(data.batchIndex);
         setHasMore(data.hasMore);

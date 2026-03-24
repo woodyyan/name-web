@@ -1,5 +1,7 @@
 import type {
   NameResult,
+  NameResultLite,
+  NameDetailData,
   GenerateNamesRequest,
 } from "./types";
 import { getPinyin, getTonePattern } from "./pinyin";
@@ -12,7 +14,7 @@ function isArkAPI(baseURL: string): boolean {
 }
 
 /**
- * 调用火山引擎 ARK /responses 端点
+ * 调用火山引擎 ARK /responses 端点（已关闭 thinking）
  */
 async function callArkAPI(
   baseURL: string,
@@ -51,8 +53,9 @@ async function callArkAPI(
           ],
         },
       ],
+      thinking: { type: "disabled" },
       temperature: 0.8,
-      max_output_tokens: 16000,
+      max_output_tokens: 8000,
     }),
   });
 
@@ -65,7 +68,7 @@ async function callArkAPI(
   const data = await response.json();
 
   // ARK /responses 返回格式：
-  // { output: [ { type: "reasoning", ... }, { type: "message", content: [ { type: "output_text", text: "..." } ] } ] }
+  // { output: [ { type: "message", content: [ { type: "output_text", text: "..." } ] } ] }
   const output = data.output;
   if (Array.isArray(output)) {
     for (const item of output) {
@@ -164,11 +167,11 @@ async function callAI(
   }
 }
 
-/**
- * 构建取名 Prompt（全量诗词模式）
- * 不再依赖本地候选诗句，让 AI 从海量古诗词中自由取名
- */
-function buildPrompt(
+// ============================================
+// 轻量版 Prompt（快速出名字，不含详解）
+// ============================================
+
+function buildLitePrompt(
   surname: string,
   gender: string,
   collections: string[]
@@ -178,58 +181,35 @@ function buildPrompt(
 
   const collectionText =
     collections.length > 0
-      ? `请从以下典籍中选取诗句：${collections.join("、")}。`
-      : "请从诗经、楚辞、唐诗、宋词、元曲、古文观止、论语、孟子、大学、中庸、道德经、庄子等中国古典典籍中广泛选取诗句。";
+      ? `请从以下典籍中选取：${collections.join("、")}。`
+      : "请从诗经、楚辞、唐诗、宋词、元曲、古文观止、论语、孟子、道德经、庄子等经典中选取。";
 
-  return `你是一位精通中国古典文学的取名大师，对诗经、楚辞、唐诗三百首、宋词三百首、论语、道德经、庄子、孟子、古文观止、元曲等经典烂熟于胸。
+  return `为姓"${surname}"的${genderText}取9个好名字。${collectionText}
 
-请为姓"${surname}"的${genderText}取9个好名字。${collectionText}
+要求：
+1. 每个名字1-2个字（不含姓），出自同一句真实古诗词
+2. 名字好听、有意境、寓意美好，与姓氏音韵和谐
+3. 9个名字来自不同诗文，风格多样
+4. 至少3个使用非连续取字（隔字组合）
+5. 引用的诗句必须真实存在，严禁编造
 
-## 核心原则
-**每个名字的每个字都必须真实出自同一首古诗/古文的同一段落**。你必须确保引用的诗句原文是真实存在的，作者和篇名也必须准确无误。严禁编造不存在的诗句。
-
-## 取名策略
-名字的每个字都必须出自同一句/同一段诗文，但不要求是连续的字。可以灵活运用以下组合方式：
-- **连续取字**：如「上善若水」→ 若水
-- **隔字组合**：如「上善若水」→ 善水；「春风又绿江南岸」→ 春南、风岸
-- **首尾呼应**：如「明月松间照」→ 明照
-- **单字取名**：取一个最有意境的字也可以
-
-## 取名要求
-1. 每个名字取1-2个字（不含姓），每个字都必须出自同一句/同一段诗文
-2. 9个名字中，至少3个使用隔字组合（非连续取字），体现巧思
-3. 名字要好听、有意境、寓意美好
-4. 注意与姓氏"${surname}"搭配的音韵和谐度，避免不雅谐音
-5. **多样化**：9个名字必须来自9首不同的诗/文，涵盖不同作者、不同意境
-6. 选取的诗句要有一定知名度或文学价值，避免过于冷僻
-
-## 输出格式
-请严格以 JSON 数组格式输出，每个元素包含：
+输出JSON数组，只要这些字段：
 \`\`\`json
 [
   {
-    "givenName": "名（不含姓）",
-    "sourceText": "出处的诗句原文（必须是真实诗句）",
+    "givenName": "名",
+    "sourceText": "诗句原文",
     "sourceTitle": "篇名",
     "sourceAuthor": "作者",
     "sourceDynasty": "朝代",
-    "sourceCollection": "典籍分类（如：诗经、楚辞、唐诗、宋词等）",
-    "sourceFullText": "包含该诗句的完整段落（至少包含上下文2-4句）",
-    "nameReason": "取名释义：为什么从这句诗中选这几个字，约80字",
-    "meaning": "寓意解读：这个名字寄托了什么美好愿望，约60字",
-    "imagery": "意境描绘：用优美的语言描绘这个名字的画面感，约80字"
+    "sourceCollection": "典籍分类"
   }
 ]
 \`\`\`
-
-只输出 JSON 数组，不要输出其他内容。`;
+只输出JSON，不要其他内容。`;
 }
 
-/**
- * 构建「指定字取名」专用 Prompt（全量诗词模式）
- * 不再依赖本地候选诗句，让 AI 自由从全量古诗词中找含指定字的诗句
- */
-function buildDesignatedCharPrompt(
+function buildDesignatedCharLitePrompt(
   surname: string,
   gender: string,
   designatedChar: string,
@@ -241,50 +221,63 @@ function buildDesignatedCharPrompt(
   const collectionText =
     collections.length > 0
       ? `请从以下典籍中寻找：${collections.join("、")}。`
-      : "请从诗经、楚辞、唐诗、宋词、元曲、古文观止、论语、孟子、大学、中庸、道德经、庄子等中国古典典籍中广泛寻找。";
+      : "请从诗经、楚辞、唐诗、宋词、元曲、古文观止、论语、孟子、道德经、庄子等经典中寻找。";
 
-  return `你是一位精通中国古典文学的取名大师，对诗经、楚辞、唐诗三百首、宋词三百首、论语、道德经、庄子、孟子、古文观止、元曲等经典烂熟于胸。
+  return `名字中必须包含「${designatedChar}」字。为姓"${surname}"的${genderText}取9个好名字。${collectionText}
 
-用户希望名字中包含「${designatedChar}」字。请从中国古典诗词中找到含有「${designatedChar}」字的真实诗句，为姓"${surname}"的${genderText}取9个好名字。${collectionText}
+要求：
+1. 每个名字必须包含「${designatedChar}」字，1-2个字（不含姓）
+2. 「${designatedChar}」必须真实出现在引用的诗句中
+3. 另一个字也出自同一句诗文
+4. 9个名字来自不同诗文，风格多样
+5. 引用的诗句必须真实存在，严禁编造
 
-## 核心原则
-**你引用的每一句诗词必须是真实存在的**，作者和篇名必须准确无误。严禁编造不存在的诗句。「${designatedChar}」字必须真实出现在你引用的诗句原文中。
-
-## 取名要求
-1. **每个名字必须包含「${designatedChar}」字**
-2. 名字取1-2个字（不含姓），另一个字也必须出自同一句/同一段诗文
-3. 「${designatedChar}」可以在前也可以在后（如「${designatedChar}X」或「X${designatedChar}」）
-4. 也可以只用「${designatedChar}」一个字作为单字名
-5. 名字要好听、有意境、寓意美好
-6. 注意与姓氏"${surname}"搭配的音韵和谐度，避免不雅谐音
-7. **多样化**：9个名字必须来自9首不同的诗/文，涵盖不同作者、不同意境
-8. 选取的诗句要有一定知名度或文学价值
-
-## 输出格式
-请严格以 JSON 数组格式输出，每个元素包含：
+输出JSON数组，只要这些字段：
 \`\`\`json
 [
   {
-    "givenName": "名（不含姓）",
-    "sourceText": "出处的诗句原文（必须真实包含「${designatedChar}」字）",
+    "givenName": "名",
+    "sourceText": "诗句原文",
     "sourceTitle": "篇名",
     "sourceAuthor": "作者",
     "sourceDynasty": "朝代",
-    "sourceCollection": "典籍分类（如：诗经、楚辞、唐诗、宋词等）",
-    "sourceFullText": "包含该诗句的完整段落（至少包含上下文2-4句）",
-    "nameReason": "取名释义：为什么从这句诗中选这几个字组合，约80字",
-    "meaning": "寓意解读：这个名字寄托了什么美好愿望，约60字",
-    "imagery": "意境描绘：用优美的语言描绘这个名字的画面感，约80字"
+    "sourceCollection": "典籍分类"
   }
 ]
 \`\`\`
-
-只输出 JSON 数组，不要输出其他内容。`;
+只输出JSON，不要其他内容。`;
 }
 
-/**
- * 解析 AI 返回的 JSON
- */
+// ============================================
+// 详解版 Prompt（单个名字的深度解读）
+// ============================================
+
+function buildDetailPrompt(
+  fullName: string,
+  givenName: string,
+  sourceText: string,
+  sourceTitle: string,
+  sourceAuthor: string,
+  sourceDynasty: string
+): string {
+  return `请为名字「${fullName}」（取自"${sourceText}"——${sourceAuthor}《${sourceTitle}》）提供详细解读。
+
+输出JSON，包含以下字段：
+\`\`\`json
+{
+  "sourceFullText": "包含该诗句的完整段落（至少上下文2-4句，真实原文）",
+  "nameReason": "取名释义：为什么从这句诗中选「${givenName}」这几个字组合，约80字",
+  "meaning": "寓意解读：这个名字寄托了什么美好愿望，约60字",
+  "imagery": "意境描绘：用优美的语言描绘这个名字的画面感，约80字"
+}
+\`\`\`
+只输出JSON，不要其他内容。`;
+}
+
+// ============================================
+// 解析 AI 返回的 JSON
+// ============================================
+
 function parseAIResponse(content: string): Record<string, string>[] {
   // 1. 先尝试从 markdown 代码块中提取
   const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -313,7 +306,6 @@ function parseAIResponse(content: string): Record<string, string>[] {
       try {
         return JSON.parse(cleaned);
       } catch {
-        // 可能是被截断了，尝试修复截断的 JSON
         const repaired = repairTruncatedJSON(jsonMatch[0]);
         if (repaired) {
           try {
@@ -333,60 +325,89 @@ function parseAIResponse(content: string): Record<string, string>[] {
   throw new Error("AI 返回格式异常，无法解析 JSON");
 }
 
+function parseAIDetailResponse(content: string): Record<string, string> {
+  // 1. 从 markdown 代码块中提取
+  const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    const innerContent = codeBlockMatch[1].trim();
+    const objMatch = innerContent.match(/\{[\s\S]*\}/);
+    if (objMatch) {
+      try {
+        return JSON.parse(objMatch[0]);
+      } catch {
+        // 继续
+      }
+    }
+  }
+
+  // 2. 直接提取 JSON 对象
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch {
+      const cleaned = jsonMatch[0]
+        .replace(/,\s*}/g, "}")
+        .replace(/,\s*\]/g, "]");
+      try {
+        return JSON.parse(cleaned);
+      } catch {
+        // 失败
+      }
+    }
+  }
+
+  console.error("无法解析详解 JSON:", content.slice(0, 500));
+  throw new Error("AI 详解返回格式异常");
+}
+
 /**
  * 尝试修复被截断的 JSON 数组
- * 例如 [{"a":"1"},{"a":"2"},{"a":"3  被截断
  */
 function repairTruncatedJSON(text: string): string | null {
-  // 找到最后一个完整的 },
-  // 然后关闭数组
   const lastCompleteObj = text.lastIndexOf("},");
   if (lastCompleteObj === -1) {
-    // 试试最后一个 }
     const lastObj = text.lastIndexOf("}");
     if (lastObj > 0) {
       return text.slice(0, lastObj + 1) + "]";
     }
     return null;
   }
-
   return text.slice(0, lastCompleteObj + 1) + "]";
 }
 
+// ============================================
+// 导出函数
+// ============================================
+
 /**
- * 核心：生成名字（全量诗词模式）
- * 不再依赖本地 50 条诗句库，直接让 AI 从全量古诗词中取名
+ * 轻量版：快速生成 9 个名字（不含详解）
+ * 用于首屏展示，速度优先
  */
-export async function generateNames(
+export async function generateNamesLite(
   request: GenerateNamesRequest
-): Promise<NameResult[]> {
+): Promise<NameResultLite[]> {
   const { surname, gender, collections, excludeNames, batchIndex, designatedChar } = request;
 
   let userPrompt: string;
 
   if (designatedChar) {
-    // === 指定字模式：直接让 AI 自由发挥 ===
-    userPrompt = buildDesignatedCharPrompt(surname, gender, designatedChar, collections);
+    userPrompt = buildDesignatedCharLitePrompt(surname, gender, designatedChar, collections);
   } else {
-    // === 普通模式：让 AI 从全量古诗词中取名 ===
-    userPrompt = buildPrompt(surname, gender, collections);
+    userPrompt = buildLitePrompt(surname, gender, collections);
   }
 
-  // 如果有排除名字，在 prompt 后追加
   if (excludeNames.length > 0) {
-    userPrompt += `\n\n## 排除名字\n以下名字已经推荐过，请不要重复：${excludeNames.join("、")}`;
+    userPrompt += `\n\n排除以下已推荐的名字：${excludeNames.join("、")}`;
   }
 
-  // 调用 AI
   const systemPrompt =
-    "你是一位精通中国古典文学的取名大师，学识渊博，对诗经、楚辞、唐诗、宋词、元曲、古文观止、论语、道德经、庄子等经典了然于胸。你取的名字既有文化底蕴，又好听好记。你引用的诗句必须是真实存在的，不可编造。回答务必使用 JSON 格式。";
+    "你是精通中国古典文学的取名大师。引用的诗句必须真实存在，不可编造。回答只用JSON格式。";
   const responseText = await callAI(systemPrompt, userPrompt);
 
-  // 解析结果
   const rawNames = parseAIResponse(responseText);
 
-  // 组装并添加拼音
-  const names: NameResult[] = rawNames
+  const names: NameResultLite[] = rawNames
     .filter((raw) => {
       const fullName = surname + raw.givenName;
       return !excludeNames.includes(fullName);
@@ -407,20 +428,104 @@ export async function generateNames(
         tonePattern,
         source: {
           text: raw.sourceText,
-          fullText: raw.sourceFullText || raw.sourceText,
           title: raw.sourceTitle,
           author: raw.sourceAuthor,
           dynasty: raw.sourceDynasty,
           collection: raw.sourceCollection,
         },
-        interpretation: {
-          nameReason: raw.nameReason,
-          meaning: raw.meaning,
-          imagery: raw.imagery,
-        },
-        verified: true,
       };
     });
 
   return names;
+}
+
+/**
+ * 详解版：为单个名字生成详细解读
+ * 用于用户点击名字后按需加载
+ */
+export async function generateNameDetail(
+  fullName: string,
+  givenName: string,
+  sourceText: string,
+  sourceTitle: string,
+  sourceAuthor: string,
+  sourceDynasty: string
+): Promise<NameDetailData> {
+  const userPrompt = buildDetailPrompt(
+    fullName,
+    givenName,
+    sourceText,
+    sourceTitle,
+    sourceAuthor,
+    sourceDynasty
+  );
+
+  const systemPrompt =
+    "你是精通中国古典文学的取名大师。引用的诗句必须真实存在。回答只用JSON格式。";
+  const responseText = await callAI(systemPrompt, userPrompt);
+
+  const raw = parseAIDetailResponse(responseText);
+
+  return {
+    sourceFullText: raw.sourceFullText || sourceText,
+    nameReason: raw.nameReason || "",
+    meaning: raw.meaning || "",
+    imagery: raw.imagery || "",
+  };
+}
+
+/**
+ * 兼容旧接口：一次性生成完整结果（保留向下兼容）
+ */
+export async function generateNames(
+  request: GenerateNamesRequest
+): Promise<NameResult[]> {
+  // 先获取轻量版
+  const liteNames = await generateNamesLite(request);
+
+  // 然后为每个名字生成详解（并行）
+  const fullNames = await Promise.all(
+    liteNames.map(async (lite) => {
+      try {
+        const detail = await generateNameDetail(
+          lite.fullName,
+          lite.givenName,
+          lite.source.text,
+          lite.source.title,
+          lite.source.author,
+          lite.source.dynasty
+        );
+        return {
+          ...lite,
+          source: {
+            ...lite.source,
+            fullText: detail.sourceFullText,
+          },
+          interpretation: {
+            nameReason: detail.nameReason,
+            meaning: detail.meaning,
+            imagery: detail.imagery,
+          },
+          verified: true,
+        } as NameResult;
+      } catch {
+        // 详解失败时用占位
+        return {
+          ...lite,
+          source: {
+            ...lite.source,
+            fullText: lite.source.text,
+          },
+          interpretation: {
+            nameReason: "详解加载失败",
+            meaning: "",
+            imagery: "",
+          },
+          verified: true,
+        } as NameResult;
+      }
+    })
+  );
+
+  return fullNames;
 }

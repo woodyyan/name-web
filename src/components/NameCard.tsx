@@ -1,10 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { NameResult } from "@/lib/types";
+import type { NameResultLite } from "@/lib/types";
 
 interface NameCardProps {
-  name: NameResult;
+  name: NameResultLite;
   index: number;
   isFavorite: boolean;
   onToggleFavorite: () => void;

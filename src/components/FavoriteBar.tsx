@@ -1,12 +1,12 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import type { FavoriteItem, NameResult } from "@/lib/types";
+import type { FavoriteItem, NameResultLite } from "@/lib/types";
 
 interface FavoriteBarProps {
   favorites: FavoriteItem[];
   onRemove: (fullName: string) => void;
-  onViewDetail: (name: NameResult) => void;
+  onViewDetail: (name: NameResultLite) => void;
 }
 
 export default function FavoriteBar({

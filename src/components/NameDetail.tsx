@@ -1,10 +1,11 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { NameResult } from "@/lib/types";
+import type { NameResultLite, NameDetailData } from "@/lib/types";
 
 interface NameDetailProps {
-  name: NameResult | null;
+  name: NameResultLite | null;
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onClose: () => void;
@@ -18,6 +19,63 @@ export default function NameDetail({
   onClose,
   onBlacklist,
 }: NameDetailProps) {
+  const [detail, setDetail] = useState<NameDetailData | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  // 当选中名字变化时，异步加载详解
+  useEffect(() => {
+    if (!name) {
+      setDetail(null);
+      setDetailError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingDetail(true);
+    setDetailError(null);
+    setDetail(null);
+
+    fetch("/api/name-detail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fullName: name.fullName,
+        givenName: name.givenName,
+        sourceText: name.source.text,
+        sourceTitle: name.source.title,
+        sourceAuthor: name.source.author,
+        sourceDynasty: name.source.dynasty,
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "加载详解失败");
+        }
+        return res.json();
+      })
+      .then((data: NameDetailData) => {
+        if (!cancelled) {
+          setDetail(data);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setDetailError(err instanceof Error ? err.message : "加载详解失败");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingDetail(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [name]);
+
   if (!name) return null;
 
   // 在原文中高亮取名的字
@@ -87,7 +145,7 @@ export default function NameDetail({
 
             <div className="divider-ornament text-sm mb-6">❖</div>
 
-            {/* 出处 */}
+            {/* 出处（基础信息，来自轻量版，立即显示） */}
             <section className="mb-6">
               <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--color-rust)] mb-3">
                 <span>📖</span> 出处
@@ -95,53 +153,113 @@ export default function NameDetail({
               <p className="text-sm text-[var(--color-ink-muted)] mb-2">
                 {name.source.author}（{name.source.dynasty}）·《{name.source.title}》
               </p>
+
+              {/* 完整诗文：等详解加载后显示，否则显示核心诗句 */}
               <div
                 className="bg-[var(--color-silk)] border-l-3 border-[var(--color-rust-light)] p-4 rounded-r-lg
                            text-[var(--color-ink-light)] leading-relaxed whitespace-pre-line"
                 style={{ fontFamily: "var(--font-kai), serif" }}
                 dangerouslySetInnerHTML={{
                   __html: highlightChars(
-                    name.source.fullText,
+                    detail?.sourceFullText || name.source.text,
                     name.givenName
                   ),
                 }}
               />
             </section>
 
-            {/* 取名释义 */}
-            <section className="mb-6">
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--color-rust)] mb-3">
-                <span>💡</span> 取名释义
-              </h4>
-              <p className="text-[var(--color-ink-light)] leading-relaxed text-sm">
-                {name.interpretation.nameReason}
-              </p>
-            </section>
+            {/* 详解区域 */}
+            {loadingDetail ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="animate-pulse-soft">
+                    <div className="h-4 bg-[var(--color-gold)]/30 rounded w-24 mb-3" />
+                    <div className="space-y-2">
+                      <div className="h-3 bg-[var(--color-gold)]/20 rounded w-full" />
+                      <div className="h-3 bg-[var(--color-gold)]/20 rounded w-4/5" />
+                    </div>
+                  </div>
+                ))}
+                <p className="text-center text-xs text-[var(--color-ink-muted)] mt-2">
+                  AI 正在为您解读...
+                </p>
+              </div>
+            ) : detailError ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-red-500">{detailError}</p>
+                <button
+                  onClick={() => {
+                    // 重试：触发 useEffect 重新请求
+                    setDetail(null);
+                    setDetailError(null);
+                    setLoadingDetail(true);
+                    fetch("/api/name-detail", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        fullName: name.fullName,
+                        givenName: name.givenName,
+                        sourceText: name.source.text,
+                        sourceTitle: name.source.title,
+                        sourceAuthor: name.source.author,
+                        sourceDynasty: name.source.dynasty,
+                      }),
+                    })
+                      .then(async (res) => {
+                        if (!res.ok) throw new Error("重试失败");
+                        return res.json();
+                      })
+                      .then(setDetail)
+                      .catch((err) =>
+                        setDetailError(
+                          err instanceof Error ? err.message : "重试失败"
+                        )
+                      )
+                      .finally(() => setLoadingDetail(false));
+                  }}
+                  className="mt-2 text-xs text-[var(--color-rust)] hover:underline"
+                >
+                  点击重试
+                </button>
+              </div>
+            ) : detail ? (
+              <>
+                {/* 取名释义 */}
+                <section className="mb-6">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--color-rust)] mb-3">
+                    <span>💡</span> 取名释义
+                  </h4>
+                  <p className="text-[var(--color-ink-light)] leading-relaxed text-sm">
+                    {detail.nameReason}
+                  </p>
+                </section>
 
-            {/* 寓意解读 */}
-            <section className="mb-6">
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--color-rust)] mb-3">
-                <span>🌸</span> 寓意
-              </h4>
-              <p className="text-[var(--color-ink-light)] leading-relaxed text-sm">
-                {name.interpretation.meaning}
-              </p>
-            </section>
+                {/* 寓意解读 */}
+                <section className="mb-6">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--color-rust)] mb-3">
+                    <span>🌸</span> 寓意
+                  </h4>
+                  <p className="text-[var(--color-ink-light)] leading-relaxed text-sm">
+                    {detail.meaning}
+                  </p>
+                </section>
 
-            {/* 意境描绘 */}
-            <section className="mb-6">
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--color-rust)] mb-3">
-                <span>🎨</span> 意境
-              </h4>
-              <p
-                className="text-[var(--color-ink-light)] leading-relaxed text-sm italic"
-                style={{ fontFamily: "var(--font-kai), serif" }}
-              >
-                {name.interpretation.imagery}
-              </p>
-            </section>
+                {/* 意境描绘 */}
+                <section className="mb-6">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--color-rust)] mb-3">
+                    <span>🎨</span> 意境
+                  </h4>
+                  <p
+                    className="text-[var(--color-ink-light)] leading-relaxed text-sm italic"
+                    style={{ fontFamily: "var(--font-kai), serif" }}
+                  >
+                    {detail.imagery}
+                  </p>
+                </section>
+              </>
+            ) : null}
 
-            {/* 音韵分析 */}
+            {/* 音韵分析（来自轻量版数据，立即显示） */}
             <section className="mb-6">
               <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--color-rust)] mb-3">
                 <span>🎵</span> 音韵

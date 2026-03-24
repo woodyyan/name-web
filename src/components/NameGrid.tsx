@@ -1,16 +1,16 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { NameResult } from "@/lib/types";
+import type { NameResultLite } from "@/lib/types";
 import NameCard from "./NameCard";
 
 interface NameGridProps {
-  names: NameResult[];
+  names: NameResultLite[];
   loading: boolean;
   isFavorite: (name: string) => boolean;
-  onToggleFavorite: (name: NameResult) => void;
-  onViewDetail: (name: NameResult) => void;
-  onBlacklist?: (name: NameResult) => void;
+  onToggleFavorite: (name: NameResultLite) => void;
+  onViewDetail: (name: NameResultLite) => void;
+  onBlacklist?: (name: NameResultLite) => void;
 }
 
 export default function NameGrid({

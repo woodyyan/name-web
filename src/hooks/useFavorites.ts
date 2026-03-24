@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { NameResult, FavoriteItem } from "@/lib/types";
+import type { NameResultLite, FavoriteItem } from "@/lib/types";
 
 const STORAGE_KEY = "shiming-favorites";
 
@@ -31,7 +31,7 @@ export function useFavorites() {
   }, []);
 
   const addFavorite = useCallback(
-    (name: NameResult) => {
+    (name: NameResultLite) => {
       if (favorites.some((f) => f.name.fullName === name.fullName)) return;
       save([...favorites, { name, savedAt: Date.now() }]);
     },

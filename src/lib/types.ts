@@ -63,9 +63,41 @@ export interface NameResult {
   verified: boolean;
 }
 
+/** 轻量版名字结果（不含详解，用于快速首屏） */
+export interface NameResultLite {
+  id: string;
+  fullName: string;
+  givenName: string;
+  pinyin: string;
+  pinyinGiven: string;
+  tonePattern: string;
+  source: {
+    text: string;
+    title: string;
+    author: string;
+    dynasty: string;
+    collection: string;
+  };
+}
+
+/** 名字详解（按需加载） */
+export interface NameDetailData {
+  sourceFullText: string;
+  nameReason: string;
+  meaning: string;
+  imagery: string;
+}
+
 /** 取名响应 */
 export interface GenerateNamesResponse {
   names: NameResult[];
+  batchIndex: number;
+  hasMore: boolean;
+}
+
+/** 轻量版取名响应 */
+export interface GenerateNamesLiteResponse {
+  names: NameResultLite[];
   batchIndex: number;
   hasMore: boolean;
 }
@@ -86,6 +118,6 @@ export interface CuratedVerse {
 
 /** 收藏项 */
 export interface FavoriteItem {
-  name: NameResult;
+  name: NameResultLite;
   savedAt: number; // 时间戳
 }

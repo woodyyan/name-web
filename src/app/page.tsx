@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import type { NameResult, Gender, Collection } from "@/lib/types";
+import type { NameResultLite, Gender, Collection } from "@/lib/types";
 import { useNameGenerator } from "@/hooks/useNameGenerator";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useBlacklist } from "@/hooks/useBlacklist";
@@ -28,7 +28,7 @@ export default function Home() {
   const { favorites, addFavorite, removeFavorite, isFavorite } =
     useFavorites();
 
-  const [selectedName, setSelectedName] = useState<NameResult | null>(null);
+  const [selectedName, setSelectedName] = useState<NameResultLite | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
 
   // 过滤掉黑名单中的名字
@@ -44,7 +44,7 @@ export default function Home() {
     await generate(surname, gender, collections, designatedChar);
   };
 
-  const handleToggleFavorite = (name: NameResult) => {
+  const handleToggleFavorite = (name: NameResultLite) => {
     if (isFavorite(name.fullName)) {
       removeFavorite(name.fullName);
     } else {
@@ -191,7 +191,7 @@ export default function Home() {
         </p>
       </footer>
 
-      {/* ===== 名字详情弹窗 ===== */}
+      {/* ===== 名字详情弹窗（异步加载详解） ===== */}
       <NameDetail
         name={selectedName}
         isFavorite={selectedName ? isFavorite(selectedName.fullName) : false}

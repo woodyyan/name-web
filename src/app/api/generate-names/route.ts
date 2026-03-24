@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { GenerateNamesRequest, GenerateNamesResponse } from "@/lib/types";
-import { generateNames } from "@/lib/ai";
+import type { GenerateNamesRequest } from "@/lib/types";
+import { generateNamesLite } from "@/lib/ai";
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
       designatedChar: body.designatedChar?.trim() || undefined,
     };
 
-    const names = await generateNames(request_data);
+    const names = await generateNamesLite(request_data);
 
-    const response: GenerateNamesResponse = {
+    const response = {
       names,
       batchIndex: request_data.batchIndex,
       hasMore: request_data.batchIndex < 5,
