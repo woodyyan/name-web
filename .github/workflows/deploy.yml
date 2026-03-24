@@ -112,6 +112,10 @@ jobs:
                   - .env.local
             COMPOSEEOF
 
+            # --- 清理非 Compose 管理的同名旧容器（首次迁移到 Compose 时需要）---
+            echo "🛑 清理可能存在的旧容器..."
+            docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+
             # --- 拉取最新镜像并重建容器 ---
             cd "$DEPLOY_DIR"
             echo "📥 拉取最新镜像..."
