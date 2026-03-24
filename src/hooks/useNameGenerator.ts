@@ -25,7 +25,7 @@ interface UseNameGeneratorReturn {
   reset: () => void;
 }
 
-export function useNameGenerator(): UseNameGeneratorReturn {
+export function useNameGenerator(extraExcludeNames: string[] = []): UseNameGeneratorReturn {
   const [names, setNames] = useState<NameResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,15 +100,16 @@ export function useNameGenerator(): UseNameGeneratorReturn {
   const nextBatch = useCallback(async () => {
     if (!currentParams || !hasMore) return;
     const newBatch = batchIndex + 1;
+    const combinedExclude = [...new Set([...allShownNames, ...extraExcludeNames])];
     await fetchNames(
       currentParams.surname,
       currentParams.gender,
       currentParams.collections,
       newBatch,
-      allShownNames,
+      combinedExclude,
       currentParams.designatedChar
     );
-  }, [currentParams, hasMore, batchIndex, allShownNames, fetchNames]);
+  }, [currentParams, hasMore, batchIndex, allShownNames, extraExcludeNames, fetchNames]);
 
   const reset = useCallback(() => {
     setNames([]);

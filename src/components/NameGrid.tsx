@@ -10,6 +10,7 @@ interface NameGridProps {
   isFavorite: (name: string) => boolean;
   onToggleFavorite: (name: NameResult) => void;
   onViewDetail: (name: NameResult) => void;
+  onBlacklist?: (name: NameResult) => void;
 }
 
 export default function NameGrid({
@@ -18,6 +19,7 @@ export default function NameGrid({
   isFavorite,
   onToggleFavorite,
   onViewDetail,
+  onBlacklist,
 }: NameGridProps) {
   if (loading) {
     return (
@@ -57,6 +59,7 @@ export default function NameGrid({
           isFavorite={isFavorite(name.fullName)}
           onToggleFavorite={() => onToggleFavorite(name)}
           onViewDetail={() => onViewDetail(name)}
+          onBlacklist={onBlacklist ? () => onBlacklist(name) : undefined}
         />
       ))}
     </motion.div>

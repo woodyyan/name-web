@@ -1,0 +1,26 @@
+# ============================================
+# 诗名 (name-web) — 服务器部署（从腾讯云 TCR 拉取镜像）
+# ============================================
+#
+# 使用方式：
+#   1. 先登录腾讯云镜像仓库：
+#      docker login ccr.ccs.tencentyun.com -u <username>
+#
+#   2. 部署 / 更新：
+#      docker compose pull && docker compose up -d --force-recreate
+#
+#   3. 查看日志：
+#      docker compose logs -f
+#
+# 环境变量通过 .env.local 文件注入（服务器上 ~/name-web/.env.local）
+# ============================================
+
+services:
+  web:
+    image: ${TCR_IMAGE:-ccr.ccs.tencentyun.com/your-namespace/name-web}:latest
+    container_name: name-web
+    restart: unless-stopped
+    ports:
+      - "3999:3999"
+    env_file:
+      - .env.local

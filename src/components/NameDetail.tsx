@@ -8,6 +8,7 @@ interface NameDetailProps {
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onClose: () => void;
+  onBlacklist?: () => void;
 }
 
 export default function NameDetail({
@@ -15,6 +16,7 @@ export default function NameDetail({
   isFavorite,
   onToggleFavorite,
   onClose,
+  onBlacklist,
 }: NameDetailProps) {
   if (!name) return null;
 
@@ -167,7 +169,7 @@ export default function NameDetail({
             </section>
 
             {/* 底部操作 */}
-            <div className="flex justify-center gap-4 pt-4 border-t border-[var(--color-gold)]/50">
+            <div className="flex justify-center items-center gap-4 pt-4 border-t border-[var(--color-gold)]/50">
               <button
                 onClick={onToggleFavorite}
                 className={`px-6 py-2.5 rounded-full text-sm transition-all ${
@@ -179,6 +181,20 @@ export default function NameDetail({
                 {isFavorite ? "❤️ 已收藏" : "🤍 收藏此名"}
               </button>
             </div>
+            {onBlacklist && (
+              <div className="text-center mt-3">
+                <button
+                  onClick={() => {
+                    onBlacklist();
+                    onClose();
+                  }}
+                  className="text-[11px] text-[var(--color-ink-muted)]/40
+                             hover:text-[var(--color-ink-muted)] transition-colors"
+                >
+                  不喜欢，不再推荐
+                </button>
+              </div>
+            )}
           </motion.div>
         </>
       )}

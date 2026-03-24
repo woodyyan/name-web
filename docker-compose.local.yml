@@ -1,0 +1,30 @@
+# ============================================
+# 诗名 (name-web) — 本地开发部署（本地构建镜像）
+# ============================================
+#
+# 使用方式：
+#   构建并启动：
+#     docker compose -f docker-compose.local.yml up -d --build
+#
+#   强制重建（无缓存）：
+#     docker compose -f docker-compose.local.yml up -d --build --force-recreate
+#
+#   查看日志：
+#     docker compose -f docker-compose.local.yml logs -f
+#
+#   停止：
+#     docker compose -f docker-compose.local.yml down
+#
+# 环境变量通过项目根目录的 .env.local 文件注入
+# ============================================
+
+services:
+  web:
+    build: .
+    image: name-web:local
+    container_name: name-web
+    restart: unless-stopped
+    ports:
+      - "3999:3999"
+    env_file:
+      - .env.local

@@ -100,47 +100,54 @@ npm run build
 npm start
 ```
 
-默认监听 3000 端口。可通过 `-p` 参数指定端口：
+默认监听 3999 端口。可通过 `--port` 参数临时指定端口：
 
 ```bash
-npm start -- -p 8080
+npm start -- --port 8080
 ```
 
 ### 方式三：Docker 部署
 
-项目已包含 `Dockerfile`（多阶段构建）和 `.dockerignore`，直接构建即可：
+项目已包含 `Dockerfile`（多阶段构建）和 `.dockerignore`，容器内默认端口为 `3999`。
+
+提供两套 Docker Compose 配置：
+
+#### 本地开发（`docker-compose.local.yml`）
+
+本地构建镜像并运行，适合开发调试：
 
 ```bash
-# 构建镜像
-docker build -t shiming .
+# 构建并启动（自动停旧容器 + 重建）
+docker compose -f docker-compose.local.yml up -d --build
 
-# 运行容器
-docker run -d -p 3000:3000 \
-  -e AI_API_KEY=your-api-key \
-  -e AI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3 \
-  -e AI_MODEL=doubao-seed-2-0-pro-260215 \
-  --name shiming \
-  shiming
+# 强制重建（即使没有变化）
+docker compose -f docker-compose.local.yml up -d --build --force-recreate
+
+# 查看日志
+docker compose -f docker-compose.local.yml logs -f
+
+# 停止
+docker compose -f docker-compose.local.yml down
 ```
 
-也可以使用 Docker Compose，创建 `docker-compose.yml`：
+#### 服务器部署（`docker-compose.yml`）
 
-```yaml
-services:
-  web:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - AI_API_KEY=your-api-key
-      - AI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
-      - AI_MODEL=doubao-seed-2-0-pro-260215
-    restart: unless-stopped
-```
+从腾讯云容器镜像仓库（TCR）拉取镜像，适合生产环境：
 
 ```bash
-docker compose up -d
+# 先登录镜像仓库
+docker login ccr.ccs.tencentyun.com -u <username>
+
+# 拉取最新镜像并重建容器
+docker compose pull && docker compose up -d --force-recreate
+
+# 查看日志
+docker compose logs -f
 ```
+
+> CI/CD 会自动通过 GitHub Actions 完成构建、推送、部署全流程，通常无需手动操作。
+
+两种方式的环境变量均通过 `.env.local` 文件注入。
 
 > **说明**：`next.config.ts` 已配置 `output: 'standalone'`，生产镜像约 ~150MB，仅包含运行所需的最小依赖。
 

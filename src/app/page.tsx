@@ -5,12 +5,15 @@ import { motion } from "framer-motion";
 import type { NameResult, Gender, Collection } from "@/lib/types";
 import { useNameGenerator } from "@/hooks/useNameGenerator";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useBlacklist } from "@/hooks/useBlacklist";
 import PreferenceForm from "@/components/PreferenceForm";
 import NameGrid from "@/components/NameGrid";
 import NameDetail from "@/components/NameDetail";
 import FavoriteBar from "@/components/FavoriteBar";
 
 export default function Home() {
+  const { blacklist, addToBlacklist, isBlacklisted } = useBlacklist();
+
   const {
     names,
     loading,
@@ -20,13 +23,16 @@ export default function Home() {
     generate,
     nextBatch,
     reset,
-  } = useNameGenerator();
+  } = useNameGenerator(blacklist);
 
   const { favorites, addFavorite, removeFavorite, isFavorite } =
     useFavorites();
 
   const [selectedName, setSelectedName] = useState<NameResult | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
+
+  // 过滤掉黑名单中的名字
+  const visibleNames = names.filter((n) => !isBlacklisted(n.fullName));
 
   const handleGenerate = async (
     surname: string,
@@ -106,7 +112,7 @@ export default function Home() {
         {hasGenerated && (
           <div className="mt-12">
             {/* 结果标题 */}
-            {names.length > 0 && !loading && (
+            {visibleNames.length > 0 && !loading && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -114,22 +120,23 @@ export default function Home() {
               >
                 <div className="divider-ornament max-w-sm mx-auto mb-2">✿</div>
                 <p className="text-sm text-[var(--color-ink-muted)]">
-                  第 {batchIndex + 1} 批 · 为您精选了 {names.length} 个名字
+                  第 {batchIndex + 1} 批 · 为您精选了 {visibleNames.length} 个名字
                 </p>
               </motion.div>
             )}
 
             {/* 名字网格 */}
             <NameGrid
-              names={names}
+              names={visibleNames}
               loading={loading}
               isFavorite={isFavorite}
               onToggleFavorite={handleToggleFavorite}
               onViewDetail={setSelectedName}
+              onBlacklist={(name) => addToBlacklist(name.fullName)}
             />
 
             {/* 换一批 / 操作区 */}
-            {names.length > 0 && !loading && (
+            {visibleNames.length > 0 && !loading && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -192,6 +199,11 @@ export default function Home() {
           if (selectedName) handleToggleFavorite(selectedName);
         }}
         onClose={() => setSelectedName(null)}
+        onBlacklist={
+          selectedName
+            ? () => addToBlacklist(selectedName.fullName)
+            : undefined
+        }
       />
     </div>
   );

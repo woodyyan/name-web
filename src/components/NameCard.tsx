@@ -9,6 +9,7 @@ interface NameCardProps {
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onViewDetail: () => void;
+  onBlacklist?: () => void;
 }
 
 export default function NameCard({
@@ -17,6 +18,7 @@ export default function NameCard({
   isFavorite,
   onToggleFavorite,
   onViewDetail,
+  onBlacklist,
 }: NameCardProps) {
   return (
     <motion.div
@@ -74,10 +76,25 @@ export default function NameCard({
         ◇ {name.source.author} ·《{name.source.title}》
       </p>
 
-      {/* 查看详解提示 */}
-      <p className="text-center text-xs text-[var(--color-rust-light)] mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-        点击查看详解 →
-      </p>
+      {/* 底部操作区：查看详解 + 不喜欢 */}
+      <div className="flex items-center justify-center mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+        <p className="text-center text-xs text-[var(--color-rust-light)]">
+          点击查看详解 →
+        </p>
+        {onBlacklist && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onBlacklist();
+            }}
+            className="absolute bottom-3 right-3 text-[10px] text-[var(--color-ink-muted)]/40
+                       hover:text-[var(--color-ink-muted)] transition-colors"
+            title="不再推荐这个名字"
+          >
+            不喜欢
+          </button>
+        )}
+      </div>
     </motion.div>
   );
 }

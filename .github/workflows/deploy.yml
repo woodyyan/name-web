@@ -83,6 +83,7 @@ jobs:
             TCR_REGISTRY="${{ secrets.TCR_REGISTRY }}"
             TCR_USERNAME="${{ secrets.TCR_USERNAME }}"
             TCR_PASSWORD="${{ secrets.TCR_PASSWORD }}"
+            DEPLOY_DIR=~/name-web
 
             echo "🚀 开始部署诗名..."
 
@@ -90,31 +91,33 @@ jobs:
             echo "🔑 登录镜像仓库..."
             echo "$TCR_PASSWORD" | docker login "$TCR_REGISTRY" -u "$TCR_USERNAME" --password-stdin
 
-            # --- 拉取最新镜像 ---
-            echo "📥 拉取最新镜像..."
-            docker pull "$FULL_IMAGE:latest"
-
             # --- 写入环境变量文件 ---
-            mkdir -p ~/name-web
-            cat > ~/name-web/.env.local <<ENVEOF
+            mkdir -p "$DEPLOY_DIR"
+            cat > "$DEPLOY_DIR/.env.local" <<ENVEOF
             AI_API_KEY=${{ secrets.AI_API_KEY }}
             AI_BASE_URL=${{ secrets.AI_BASE_URL }}
             AI_MODEL=${{ secrets.AI_MODEL }}
             ENVEOF
 
-            # --- 停止旧容器 ---
-            echo "🛑 停止旧容器..."
-            docker stop $CONTAINER_NAME 2>/dev/null || true
-            docker rm $CONTAINER_NAME 2>/dev/null || true
+            # --- 写入 docker-compose.yml ---
+            cat > "$DEPLOY_DIR/docker-compose.yml" <<COMPOSEEOF
+            services:
+              web:
+                image: ${FULL_IMAGE}:latest
+                container_name: ${CONTAINER_NAME}
+                restart: unless-stopped
+                ports:
+                  - "${HOST_PORT}:3999"
+                env_file:
+                  - .env.local
+            COMPOSEEOF
 
-            # --- 启动新容器 ---
-            echo "✅ 启动新容器..."
-            docker run -d \
-              --name $CONTAINER_NAME \
-              --restart unless-stopped \
-              -p $HOST_PORT:3999 \
-              --env-file ~/name-web/.env.local \
-              "$FULL_IMAGE:latest"
+            # --- 拉取最新镜像并重建容器 ---
+            cd "$DEPLOY_DIR"
+            echo "📥 拉取最新镜像..."
+            docker compose pull
+            echo "🔄 重建容器..."
+            docker compose up -d --force-recreate
 
             # --- 清理旧镜像 ---
             echo "🧹 清理悬空镜像..."
@@ -127,7 +130,7 @@ jobs:
               echo "🎉 应用部署成功！服务运行在端口 $HOST_PORT"
             else
               echo "⚠️ 服务可能还在启动中，请稍后手动检查"
-              docker logs $CONTAINER_NAME --tail 20
+              docker compose logs --tail 20
             fi
 
   # ==================== Job 3: 配置 Nginx + SSL ====================
