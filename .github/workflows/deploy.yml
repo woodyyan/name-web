@@ -46,7 +46,6 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
-          script_stop: true
           command_timeout: 1200s
           envs: IMAGE_NAME,CONTAINER_NAME,HOST_PORT
           script: |
@@ -63,10 +62,19 @@ jobs:
               cd $REPO_DIR
               git fetch --all
               git reset --hard origin/main
+            elif [ -d "$REPO_DIR" ]; then
+              echo "⚠️ $REPO_DIR 存在但不是 git 仓库，备份后重新克隆..."
+              # 保留可能有用的 .env.local
+              [ -f "$REPO_DIR/.env.local" ] && cp "$REPO_DIR/.env.local" /tmp/.env.local.bak || true
+              rm -rf "$REPO_DIR"
+              git clone "$REPO_URL" "$REPO_DIR"
+              cd "$REPO_DIR"
+              # 恢复 .env.local
+              [ -f /tmp/.env.local.bak ] && mv /tmp/.env.local.bak "$REPO_DIR/.env.local" || true
             else
               echo "📥 首次克隆仓库..."
-              git clone "$REPO_URL" $REPO_DIR
-              cd $REPO_DIR
+              git clone "$REPO_URL" "$REPO_DIR"
+              cd "$REPO_DIR"
             fi
 
             # --- 写入环境变量文件 ---
@@ -116,7 +124,6 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
-          script_stop: true
           command_timeout: 600s
           envs: HOST_PORT,DOMAIN
           script: |
