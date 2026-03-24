@@ -197,10 +197,10 @@ function buildPrompt(
 
 ## 取名要求
 1. 每个名字取1-2个字（不含姓），每个字都必须出自同一句/同一段诗文
-2. 6个名字中，至少2个使用隔字组合（非连续取字），体现巧思
+2. 9个名字中，至少3个使用隔字组合（非连续取字），体现巧思
 3. 名字要好听、有意境、寓意美好
 4. 注意与姓氏"${surname}"搭配的音韵和谐度，避免不雅谐音
-5. **多样化**：6个名字必须来自6首不同的诗/文，涵盖不同作者、不同意境
+5. **多样化**：9个名字必须来自9首不同的诗/文，涵盖不同作者、不同意境
 6. 选取的诗句要有一定知名度或文学价值，避免过于冷僻
 
 ## 输出格式
@@ -245,7 +245,7 @@ function buildDesignatedCharPrompt(
 
   return `你是一位精通中国古典文学的取名大师，对诗经、楚辞、唐诗三百首、宋词三百首、论语、道德经、庄子、孟子、古文观止、元曲等经典烂熟于胸。
 
-用户希望名字中包含「${designatedChar}」字。请从中国古典诗词中找到含有「${designatedChar}」字的真实诗句，为姓"${surname}"的${genderText}取6个好名字。${collectionText}
+用户希望名字中包含「${designatedChar}」字。请从中国古典诗词中找到含有「${designatedChar}」字的真实诗句，为姓"${surname}"的${genderText}取9个好名字。${collectionText}
 
 ## 核心原则
 **你引用的每一句诗词必须是真实存在的**，作者和篇名必须准确无误。严禁编造不存在的诗句。「${designatedChar}」字必须真实出现在你引用的诗句原文中。
@@ -391,7 +391,7 @@ export async function generateNames(
       const fullName = surname + raw.givenName;
       return !excludeNames.includes(fullName);
     })
-    .slice(0, 6)
+    .slice(0, 9)
     .map((raw, index) => {
       const fullName = surname + raw.givenName;
       const pinyinFull = getPinyin(fullName);
