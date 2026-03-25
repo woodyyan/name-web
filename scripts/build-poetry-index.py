@@ -564,7 +564,7 @@ def main():
     # ============================================
     
     SMALL_COLLECTIONS = {"诗经", "楚辞", "论语", "大学", "中庸", "孟子"}
-    MAX_PER_LARGE_COLLECTION = 5000  # 大典籍每个最多保留条数
+    MAX_PER_LARGE_COLLECTION = 10000  # 大典籍每个最多保留条数
     
     # 先按典籍分组
     by_collection = {}
