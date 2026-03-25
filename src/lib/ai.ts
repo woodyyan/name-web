@@ -5,6 +5,7 @@ import type {
   GenerateNamesRequest,
 } from "./types";
 import { getPinyin, getTonePattern } from "./pinyin";
+import { samplePoetry, formatPoetryForPrompt } from "./poetry-sampler";
 
 /**
  * 判断是否是火山引擎 ARK API
@@ -168,30 +169,29 @@ async function callAI(
 }
 
 // ============================================
-// 轻量版 Prompt（快速出名字，不含详解）
+// 轻量版 Prompt（从预选诗句中取名，不含详解）
 // ============================================
 
 function buildLitePrompt(
   surname: string,
   gender: string,
-  collections: string[]
+  poetryText: string
 ): string {
   const genderText =
     gender === "male" ? "男孩" : gender === "female" ? "女孩" : "男女皆宜";
 
-  const collectionText =
-    collections.length > 0
-      ? `请从以下典籍中选取：${collections.join("、")}。`
-      : "请从诗经、楚辞、唐诗、宋词、元曲、古文观止、论语、孟子、道德经、庄子等经典中选取。";
+  return `为姓"${surname}"的${genderText}取9个好名字。
 
-  return `为姓"${surname}"的${genderText}取9个好名字。${collectionText}
+以下是候选诗句，请只从这些诗句中选字取名：
+${poetryText}
 
 要求：
-1. 每个名字1-2个字（不含姓），出自同一句真实古诗词
-2. 名字好听、有意境、寓意美好，与姓氏音韵和谐
-3. 9个名字来自不同诗文，风格多样
-4. 至少3个使用非连续取字（隔字组合）
-5. 引用的诗句必须真实存在，严禁编造
+1. 每个名字1-2个字（不含姓），必须取自上面某一句诗
+2. 名字好听、有意境、寓意积极美好，与姓氏音韵和谐
+3. 跳过悲伤消极的诗句，只选寓意积极向上的
+4. 9个名字来自不同诗句，风格多样
+5. 可以取诗句中连续的字，也可以隔字组合，至少3个使用非连续取字
+6. sourceText 必须填写你所选的那句诗的原文（从候选列表中复制）
 
 输出JSON数组，只要这些字段：
 \`\`\`json
@@ -213,24 +213,23 @@ function buildDesignatedCharLitePrompt(
   surname: string,
   gender: string,
   designatedChar: string,
-  collections: string[]
+  poetryText: string
 ): string {
   const genderText =
     gender === "male" ? "男孩" : gender === "female" ? "女孩" : "男女皆宜";
 
-  const collectionText =
-    collections.length > 0
-      ? `请从以下典籍中寻找：${collections.join("、")}。`
-      : "请从诗经、楚辞、唐诗、宋词、元曲、古文观止、论语、孟子、道德经、庄子等经典中寻找。";
+  return `名字中必须包含「${designatedChar}」字。为姓"${surname}"的${genderText}取9个好名字。
 
-  return `名字中必须包含「${designatedChar}」字。为姓"${surname}"的${genderText}取9个好名字。${collectionText}
+以下是候选诗句，请只从含有「${designatedChar}」字的诗句中选字取名：
+${poetryText}
 
 要求：
 1. 每个名字必须包含「${designatedChar}」字，1-2个字（不含姓）
-2. 「${designatedChar}」必须真实出现在引用的诗句中
-3. 另一个字也出自同一句诗文
-4. 9个名字来自不同诗文，风格多样
-5. 引用的诗句必须真实存在，严禁编造
+2. 「${designatedChar}」字必须出现在你所选的诗句中
+3. 另一个字也取自同一句诗
+4. 跳过悲伤消极的诗句，只选寓意积极向上的
+5. 9个名字来自不同诗句，风格多样
+6. sourceText 必须填写你所选的那句诗的原文（从候选列表中复制）
 
 输出JSON数组，只要这些字段：
 \`\`\`json
@@ -382,19 +381,24 @@ function repairTruncatedJSON(text: string): string | null {
 
 /**
  * 轻量版：快速生成 9 个名字（不含详解）
- * 用于首屏展示，速度优先
+ * 先从本地诗词索引抽样 25 条诗句，再让 AI 从中选字取名
  */
 export async function generateNamesLite(
   request: GenerateNamesRequest
 ): Promise<NameResultLite[]> {
-  const { surname, gender, collections, excludeNames, batchIndex, designatedChar } = request;
+  const { surname, gender, collections, excludeNames, batchIndex, designatedChar, excludeSentences } = request;
 
+  // 1. 从本地诗词索引中随机抽样
+  const sampledPoetry = samplePoetry(25, collections, excludeSentences || []);
+  const poetryText = formatPoetryForPrompt(sampledPoetry);
+
+  // 2. 构建 prompt
   let userPrompt: string;
 
   if (designatedChar) {
-    userPrompt = buildDesignatedCharLitePrompt(surname, gender, designatedChar, collections);
+    userPrompt = buildDesignatedCharLitePrompt(surname, gender, designatedChar, poetryText);
   } else {
-    userPrompt = buildLitePrompt(surname, gender, collections);
+    userPrompt = buildLitePrompt(surname, gender, poetryText);
   }
 
   if (excludeNames.length > 0) {
@@ -402,7 +406,7 @@ export async function generateNamesLite(
   }
 
   const systemPrompt =
-    "你是精通中国古典文学的取名大师。引用的诗句必须真实存在，不可编造。回答只用JSON格式。";
+    "你是精通中国古典文学的取名大师。从用户提供的诗句中选字取名。回答只用JSON格式。";
   const responseText = await callAI(systemPrompt, userPrompt);
 
   const rawNames = parseAIResponse(responseText);

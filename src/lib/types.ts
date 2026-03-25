@@ -31,6 +31,8 @@ export interface GenerateNamesRequest {
   batchIndex: number;
   /** 用户指定的字（可选），名字中必须包含该字 */
   designatedChar?: string;
+  /** 排除已使用的诗句（用于换一批时去重） */
+  excludeSentences?: string[];
 }
 
 /** 诗句出处 */

@@ -32,6 +32,7 @@ export function useNameGenerator(extraExcludeNames: string[] = []): UseNameGener
   const [batchIndex, setBatchIndex] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [allShownNames, setAllShownNames] = useState<string[]>([]);
+  const [usedSentences, setUsedSentences] = useState<string[]>([]);
   const [currentParams, setCurrentParams] = useState<{
     surname: string;
     gender: Gender;
@@ -46,7 +47,8 @@ export function useNameGenerator(extraExcludeNames: string[] = []): UseNameGener
       collections: Collection[],
       batch: number,
       excludeNames: string[],
-      designatedChar?: string
+      designatedChar?: string,
+      excludeSentences?: string[]
     ) => {
       setLoading(true);
       setError(null);
@@ -62,6 +64,7 @@ export function useNameGenerator(extraExcludeNames: string[] = []): UseNameGener
             excludeNames,
             batchIndex: batch,
             designatedChar: designatedChar || undefined,
+            excludeSentences: excludeSentences || [],
           }),
         });
 
@@ -78,6 +81,11 @@ export function useNameGenerator(extraExcludeNames: string[] = []): UseNameGener
           ...prev,
           ...data.names.map((n) => n.fullName),
         ]);
+        // 记录已使用的诗句，换一批时排除
+        setUsedSentences((prev) => [
+          ...prev,
+          ...data.names.map((n) => n.source.text),
+        ]);
       } catch (err) {
         setError(err instanceof Error ? err.message : "未知错误");
       } finally {
@@ -90,9 +98,10 @@ export function useNameGenerator(extraExcludeNames: string[] = []): UseNameGener
   const generate = useCallback(
     async (surname: string, gender: Gender, collections: Collection[], designatedChar?: string) => {
       setAllShownNames([]);
+      setUsedSentences([]);
       setBatchIndex(0);
       setCurrentParams({ surname, gender, collections, designatedChar });
-      await fetchNames(surname, gender, collections, 0, [], designatedChar);
+      await fetchNames(surname, gender, collections, 0, [], designatedChar, []);
     },
     [fetchNames]
   );
@@ -107,9 +116,10 @@ export function useNameGenerator(extraExcludeNames: string[] = []): UseNameGener
       currentParams.collections,
       newBatch,
       combinedExclude,
-      currentParams.designatedChar
+      currentParams.designatedChar,
+      usedSentences
     );
-  }, [currentParams, hasMore, batchIndex, allShownNames, extraExcludeNames, fetchNames]);
+  }, [currentParams, hasMore, batchIndex, allShownNames, extraExcludeNames, usedSentences, fetchNames]);
 
   const reset = useCallback(() => {
     setNames([]);
@@ -118,6 +128,7 @@ export function useNameGenerator(extraExcludeNames: string[] = []): UseNameGener
     setBatchIndex(0);
     setHasMore(true);
     setAllShownNames([]);
+    setUsedSentences([]);
     setCurrentParams(null);
   }, []);
 

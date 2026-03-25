@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
       excludeNames: body.excludeNames || [],
       batchIndex: body.batchIndex || 0,
       designatedChar: body.designatedChar?.trim() || undefined,
+      excludeSentences: body.excludeSentences || [],
     };
 
     const names = await generateNamesLite(request_data);
