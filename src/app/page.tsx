@@ -26,7 +26,7 @@ export default function Home() {
     reset,
   } = useNameGenerator(blacklist);
 
-  const { favorites, addFavorite, removeFavorite, isFavorite } =
+  const { favorites, addFavorite, removeFavorite, isFavorite, getFavoriteDetail, updateFavoriteDetail } =
     useFavorites();
 
   const { getCachedDetail, prefetchAll, cancelAll } = useDetailPrefetch();
@@ -58,7 +58,9 @@ export default function Home() {
     if (isFavorite(name.fullName)) {
       removeFavorite(name.fullName);
     } else {
-      addFavorite(name);
+      // 收藏时，把预加载缓存中的详解一并存入
+      const detail = getCachedDetail(name.fullName);
+      addFavorite(name, detail ?? undefined);
     }
   };
 
@@ -215,7 +217,13 @@ export default function Home() {
             ? () => addToBlacklist(selectedName.fullName)
             : undefined
         }
-        cachedDetail={selectedName ? getCachedDetail(selectedName.fullName) : null}
+        cachedDetail={selectedName ? (getCachedDetail(selectedName.fullName) ?? getFavoriteDetail(selectedName.fullName) ?? null) : null}
+        onDetailLoaded={(fullName, detail) => {
+          // 如果该名字已被收藏但还没有详解，回填到收藏中
+          if (isFavorite(fullName)) {
+            updateFavoriteDetail(fullName, detail);
+          }
+        }}
       />
     </div>
   );

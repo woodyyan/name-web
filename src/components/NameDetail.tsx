@@ -12,6 +12,8 @@ interface NameDetailProps {
   onBlacklist?: () => void;
   /** 预加载缓存中的详解数据（可选） */
   cachedDetail?: NameDetailData | null;
+  /** 详解加载完成后的回调（用于回填收藏） */
+  onDetailLoaded?: (fullName: string, detail: NameDetailData) => void;
 }
 
 export default function NameDetail({
@@ -21,6 +23,7 @@ export default function NameDetail({
   onClose,
   onBlacklist,
   cachedDetail,
+  onDetailLoaded,
 }: NameDetailProps) {
   const [detail, setDetail] = useState<NameDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -70,6 +73,8 @@ export default function NameDetail({
       .then((data: NameDetailData) => {
         if (!cancelled) {
           setDetail(data);
+          // 通知外层（可用于回填收藏）
+          onDetailLoaded?.(name.fullName, data);
         }
       })
       .catch((err) => {
@@ -221,7 +226,10 @@ export default function NameDetail({
                         if (!res.ok) throw new Error("重试失败");
                         return res.json();
                       })
-                      .then(setDetail)
+                      .then((data: NameDetailData) => {
+                        setDetail(data);
+                        onDetailLoaded?.(name.fullName, data);
+                      })
                       .catch((err) =>
                         setDetailError(
                           err instanceof Error ? err.message : "重试失败"

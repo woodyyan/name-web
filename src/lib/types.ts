@@ -122,4 +122,6 @@ export interface CuratedVerse {
 export interface FavoriteItem {
   name: NameResultLite;
   savedAt: number; // 时间戳
+  /** 收藏时一并保存的详解数据（可选，旧数据可能没有） */
+  detail?: NameDetailData;
 }
