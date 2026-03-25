@@ -10,6 +10,8 @@ interface NameDetailProps {
   onToggleFavorite: () => void;
   onClose: () => void;
   onBlacklist?: () => void;
+  /** 预加载缓存中的详解数据（可选） */
+  cachedDetail?: NameDetailData | null;
 }
 
 export default function NameDetail({
@@ -18,12 +20,13 @@ export default function NameDetail({
   onToggleFavorite,
   onClose,
   onBlacklist,
+  cachedDetail,
 }: NameDetailProps) {
   const [detail, setDetail] = useState<NameDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  // 当选中名字变化时，异步加载详解
+  // 当选中名字变化时，优先使用缓存，否则异步加载详解
   useEffect(() => {
     if (!name) {
       setDetail(null);
@@ -31,6 +34,15 @@ export default function NameDetail({
       return;
     }
 
+    // 如果有预加载缓存，直接使用，无需请求
+    if (cachedDetail) {
+      setDetail(cachedDetail);
+      setLoadingDetail(false);
+      setDetailError(null);
+      return;
+    }
+
+    // 缓存未命中，走即时请求
     let cancelled = false;
     setLoadingDetail(true);
     setDetailError(null);
@@ -74,7 +86,7 @@ export default function NameDetail({
     return () => {
       cancelled = true;
     };
-  }, [name]);
+  }, [name, cachedDetail]);
 
   if (!name) return null;
 

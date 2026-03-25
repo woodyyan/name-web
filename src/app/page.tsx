@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import type { NameResultLite, Gender, Collection } from "@/lib/types";
 import { useNameGenerator } from "@/hooks/useNameGenerator";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useBlacklist } from "@/hooks/useBlacklist";
+import { useDetailPrefetch } from "@/hooks/useDetailPrefetch";
 import PreferenceForm from "@/components/PreferenceForm";
 import NameGrid from "@/components/NameGrid";
 import NameDetail from "@/components/NameDetail";
@@ -28,8 +29,17 @@ export default function Home() {
   const { favorites, addFavorite, removeFavorite, isFavorite } =
     useFavorites();
 
+  const { getCachedDetail, prefetchAll, cancelAll } = useDetailPrefetch();
+
   const [selectedName, setSelectedName] = useState<NameResultLite | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
+
+  // 名字列表变化时，后台预加载所有详解
+  useEffect(() => {
+    if (names.length > 0 && !loading) {
+      prefetchAll(names);
+    }
+  }, [names, loading, prefetchAll]);
 
   // 过滤掉黑名单中的名字
   const visibleNames = names.filter((n) => !isBlacklisted(n.fullName));
@@ -161,6 +171,7 @@ export default function Home() {
 
                 <button
                   onClick={() => {
+                    cancelAll();
                     reset();
                     setHasGenerated(false);
                   }}
@@ -204,6 +215,7 @@ export default function Home() {
             ? () => addToBlacklist(selectedName.fullName)
             : undefined
         }
+        cachedDetail={selectedName ? getCachedDetail(selectedName.fullName) : null}
       />
     </div>
   );
