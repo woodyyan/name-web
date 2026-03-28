@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "framer-motion": "^12.38.0",
+    "html-to-image": "^1.11.13",
     "next": "16.2.1",
     "openai": "^6.32.0",
     "pinyin-pro": "^3.28.0",

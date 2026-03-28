@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toPng } from "html-to-image";
 import type { NameResultLite, NameDetailData } from "@/lib/types";
 
 interface NameDetailProps {
@@ -28,6 +29,40 @@ export default function NameDetail({
   const [detail, setDetail] = useState<NameDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  /** 移动端弹出的图片 URL（长按保存） */
+  const [previewImgUrl, setPreviewImgUrl] = useState<string | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  const handleSaveImage = useCallback(async () => {
+    if (!cardRef.current || !name) return;
+    setSaving(true);
+    try {
+      // 等一帧确保 DOM 渲染完整
+      await new Promise((r) => setTimeout(r, 100));
+      const dataUrl = await toPng(cardRef.current, {
+        quality: 0.95,
+        pixelRatio: 2, // 2x 高清
+        backgroundColor: "#fdf8f0", // 宣纸白底
+      });
+      if (isMobile) {
+        // 移动端：弹出图片预览，用户长按保存
+        setPreviewImgUrl(dataUrl);
+      } else {
+        // PC端：直接触发下载
+        const link = document.createElement("a");
+        link.download = `诗名-${name.fullName}.png`;
+        link.href = dataUrl;
+        link.click();
+      }
+    } catch {
+      console.error("保存图片失败");
+    } finally {
+      setSaving(false);
+    }
+  }, [name, isMobile]);
 
   // 当选中名字变化时，优先使用缓存，否则异步加载详解
   useEffect(() => {
@@ -137,12 +172,13 @@ export default function NameDetail({
               onClick={onClose}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center
                          text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]
-                         rounded-full hover:bg-[var(--color-gold)]/30 transition-colors"
+                         rounded-full hover:bg-[var(--color-gold)]/30 transition-colors z-10"
             >
               ✕
             </button>
 
-            {/* 姓名大字 */}
+            {/* 可导出为图片的区域 */}
+            <div ref={cardRef} className="bg-[var(--color-paper)] p-2">
             <div className="text-center mb-6">
               <h2
                 className="text-5xl font-bold tracking-[0.4em] text-[var(--color-ink)] mb-2"
@@ -305,6 +341,7 @@ export default function NameDetail({
                 ))}
               </div>
             </section>
+            </div>{/* end cardRef */}
 
             {/* 底部操作 */}
             <div className="flex justify-center items-center gap-4 pt-4 border-t border-[var(--color-gold)]/50">
@@ -318,6 +355,18 @@ export default function NameDetail({
               >
                 {isFavorite ? "❤️ 已收藏" : "🤍 收藏此名"}
               </button>
+              {/* 保存为图片按钮：详解加载完成后才显示 */}
+              {detail && (
+                <button
+                  onClick={handleSaveImage}
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-full text-sm transition-all
+                             bg-[var(--color-gold)]/50 text-[var(--color-rust)] hover:bg-[var(--color-gold)]
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving ? "⏳ 生成中..." : "📷 保存图片"}
+                </button>
+              )}
             </div>
             {onBlacklist && (
               <div className="text-center mt-3">
@@ -334,6 +383,31 @@ export default function NameDetail({
               </div>
             )}
           </motion.div>
+
+          {/* 移动端图片预览浮层（长按保存） */}
+          {previewImgUrl && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center p-4"
+              onClick={() => setPreviewImgUrl(null)}
+            >
+              <p className="text-white text-sm mb-4">长按图片保存到相册</p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewImgUrl}
+                alt={`诗名-${name.fullName}`}
+                className="max-w-full max-h-[75vh] rounded-lg shadow-2xl"
+              />
+              <button
+                onClick={() => setPreviewImgUrl(null)}
+                className="mt-4 text-white/70 text-sm hover:text-white"
+              >
+                点击关闭
+              </button>
+            </motion.div>
+          )}
         </>
       )}
     </AnimatePresence>
