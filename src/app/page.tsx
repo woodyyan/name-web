@@ -7,12 +7,10 @@ import { useNameGenerator } from "@/hooks/useNameGenerator";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useBlacklist } from "@/hooks/useBlacklist";
 import { useDetailPrefetch } from "@/hooks/useDetailPrefetch";
-import { usePayment } from "@/hooks/usePayment";
 import PreferenceForm from "@/components/PreferenceForm";
 import NameGrid from "@/components/NameGrid";
 import NameDetail from "@/components/NameDetail";
 import FavoriteBar from "@/components/FavoriteBar";
-import PaymentModal from "@/components/PaymentModal";
 
 export default function Home() {
   const { blacklist, addToBlacklist, isBlacklisted } = useBlacklist();
@@ -33,15 +31,6 @@ export default function Home() {
 
   const { getCachedDetail, prefetchAll, cancelAll } = useDetailPrefetch();
 
-  const {
-    isPaid,
-    remaining,
-    showPaywall,
-    consume,
-    activateLicense,
-    closePaywall,
-  } = usePayment();
-
   const [selectedName, setSelectedName] = useState<NameResultLite | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
 
@@ -61,8 +50,6 @@ export default function Home() {
     collections: Collection[],
     designatedChar?: string
   ) => {
-    // 付费拦截：消耗 1 次免费额度，额度用完时弹出付费弹窗
-    if (!consume()) return;
     setHasGenerated(true);
     await generate(surname, gender, collections, designatedChar);
   };
@@ -170,10 +157,7 @@ export default function Home() {
               >
                 {hasMore ? (
                   <button
-                    onClick={() => {
-                      if (!consume()) return;
-                      nextBatch();
-                    }}
+                    onClick={nextBatch}
                     className="px-8 py-2.5 bg-transparent border border-[var(--color-gold-deep)]
                                text-[var(--color-rust)] rounded-full text-sm tracking-[0.15em]
                                hover:bg-[var(--color-gold)]/30 hover:border-[var(--color-rust-light)]
@@ -218,21 +202,7 @@ export default function Home() {
         <p className="text-xs text-[var(--color-ink-muted)]/60 mt-1">
           AI 驱动 · 古典诗词智能取名
         </p>
-        {/* 付费状态提示 */}
-        {!isPaid && (
-          <p className="text-xs text-[var(--color-ink-muted)]/40 mt-2">
-            免费次数：{remaining}/3
-          </p>
-        )}
       </footer>
-
-      {/* ===== 付费弹窗 ===== */}
-      <PaymentModal
-        open={showPaywall}
-        onClose={closePaywall}
-        onActivate={activateLicense}
-        remaining={remaining}
-      />
 
       {/* ===== 名字详情弹窗（异步加载详解） ===== */}
       <NameDetail
